@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        div {
+            height: 100px;
+            width: 100px;
+            background-color: steelblue;
+            margin:5px;
+        }
+    </style>
+
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+
+</head>
+<body>
+<script>
+    var width = 400, height = 500;
+    var yoffset = 40;
+    var xoffset = 50;
+    var effWidth = width - xoffset;
+
+    var data = [10, 15, 20, 25, 30];
+    var svg = d3.select("body")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+    var maxDataX = d3.max(data);
+    console.log(maxDataX);
+    var xscale = d3.scaleLinear()
+                   .domain([0, maxDataX])
+                   .range([0, width - 100]);
+
+    console.log("x scale" + xscale);
+//                   .domain([0, d3.max(data)])
+
+    var yscale = d3.scaleLinear()
+                   .domain([0, d3.max(data)])
+                   .range([height/2, 0]);
+
+    var x_axis = d3.axisBottom()
+                   .scale(xscale);
+
+// This axis goes on top and only draws the ticks, not the labels.
+// See: https://stackoverflow.com/questions/19787925/create-a-d3-axis-without-tick-labels
+    var x_axisT = d3.axisTop()
+                   .scale(xscale)
+                    .tickFormat("");
+//                   .scale();
+
+    var y_axis = d3.axisLeft()
+                   .scale(yscale);
+
+    var y_axisR = d3.axisRight()
+                   .scale(yscale);
+
+    svg.append("g")
+       .attr("transform", "translate(50, "+ yoffset + ")")
+       .call(y_axis);
+
+    svg.append("g")
+       .attr("transform", "translate(" + effWidth + ", "+ yoffset + ")")
+       .call(y_axisR);
+
+    var xAxisTranslate = height/2 + yoffset;
+
+    svg.append("g")
+            .attr("transform", "translate(50, " + xAxisTranslate  +")")
+            .call(x_axis)
+
+    svg.append("g")
+       .attr("transform", "translate(50, " + yoffset + ")")
+       .call(x_axisT);
+
+</script>
+</body>
+
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        div {
+            height: 100px;
+            width: 100px;
+            background-color: steelblue;
+            margin:5px;
+        }
+    </style>
+
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+
+</head>
+<body>
+
+<script>
+    // write your d3 code here.. 
+</script>
+
+I'm using the following URL:
+<b>http://www.tutorialsteacher.com/d3js/dom-manipulation-using-d3js</b><br>
+
+
+Alterations can be applied by element ID , using the syntax:
+<b>#ID</b><br>
+<p id="p1">First paragraph</p>
+<p id="p2">Second paragraph</p>
+<script>
+    d3.select("#p2").style("color", "red");
+</script>
+
+Alterations can be applied to classes, using the syntax:
+<b>.ClassName</b><br>
+
+    <p class="myclass ">First paragraph.1</p>
+    <p>Second paragraph.1</p>
+    <p class="myclass ">Third paragraph.1</p>
+
+    <script>
+        d3.selectAll(".myclass ").style('color','green');
+    </script>
+
+    <span>Error: This is dummy error.</span><br>
+    <span>Warning:This is dummy warning.</span>
+<p>nothing</p>
+
+<script>
+    d3.selectAll("span").style("color", function(d, i) {
+            var text = this.innerText;
+        
+            if (text.indexOf("Error") >= 0) {
+                return "red";
+            } else if (text.indexOf("Warning") >= 0) {
+                return "orange";
+            }
+    });
+</script>
+
+<div> </div>
+
+<script>
+    d3.selectAll("div")
+      .on("mouseover", function(){
+          d3.select(this)
+            .style("background-color", "orange");
+
+          // Get current event info
+          console.log(d3.event);
+          
+          // Get x & y co-ordinates
+          console.log(d3.mouse(this));
+      })
+      .on("mouseout", function(){
+          d3.select(this)
+            .style("background-color", "steelblue")
+      });
+</script>
+<svg width="500" height="500">
+    <rect x="0" y="0" width="300" height="200" fill="yellow"></rect>
+</svg>
+</body>
+</html>
