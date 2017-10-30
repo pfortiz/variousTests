@@ -8,6 +8,8 @@
             background-color: steelblue;
             margin:5px;
         }
+        .point { color: steelblue; }
+        .punkt { color: red; }
     </style>
 
     <script src="https://d3js.org/d3.v4.min.js"></script>
@@ -21,6 +23,17 @@
     var effWidth = width - xoffset;
 
     var data = [10, 15, 20, 25, 30];
+    var twoDdata = {"x" : data, "y" : data};
+    var two3data=[];
+    for(var i=0; i<data.length; i++){
+        var obj = {x: data[i], y: data[i]-2};
+        two3data.push(obj);
+    }
+    console.log("2Ddata.x: " + twoDdata.x);
+    console.log("2Ddata.y: " + twoDdata.y);
+    console.log("3data: " + two3data);
+//    console.log("2data[0]: " + two2data[0]);
+
     var svg = d3.select("body")
                 .append("svg")
                 .attr("width", width)
@@ -73,6 +86,25 @@
        .attr("transform", "translate(50, " + yoffset + ")")
        .call(x_axisT);
 
+//  Let's try to create circles associated to each datapoint and see how
+//  they are rendered.
+
+        svg.selectAll(".point")
+         .data(two3data)
+         .enter().append("circle")
+         .attr("class", "point")
+         .attr("cx", function(d) { return xscale(d.x) + 50; })
+         .attr("cy", function(d) { return yscale(d.y) + yoffset; })
+         .attr("r", 5);
+
+    for(var i=0; i<data.length; i++){
+        svg.append("g").append("circle")
+//         .attr("class", "punkt")
+         .attr("cx", xscale(data[i]) + 20 )
+         .attr("cy", yscale(data[i]) + yoffset )
+         .attr("r", 2)
+         .attr("fill", "red");
+    }
 </script>
 </body>
 

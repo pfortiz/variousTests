@@ -2,17 +2,18 @@
 <html>
 <head>
     <style>
-        .bar {
-            fill: steelblue;
-        }
+        .bar { fill: orange; }
+        .point { fill: blue; }
     </style>
     <script src="https://d3js.org/d3.v4.min.js"></script>
 <body>
-<svg width="600" height="500"></svg>
+<svg id="svg1" width="600" height="500" border="1px solid black"></svg>
+<svg id="svg2" width="600" height="500" border="1px"></svg>
 <script>
 
-    var svg = d3.select("svg"),
+    var svg = d3.select("#svg1"),
         margin = 200,
+        border = 1,
         width = svg.attr("width") - margin,
         height = svg.attr("height") - margin
 
@@ -29,7 +30,7 @@
     var g = svg.append("g")
                .attr("transform", "translate(" + 100 + "," + 100 + ")");
 
-    d3.csv("file:///Users/pfo/projects/variousTests/learnD3/XYZ.csv", function(error, data) {
+    d3.csv("XYZ.csv", function(error, data) {
         if (error) {
             throw error;
         }
@@ -42,9 +43,10 @@
          .call(d3.axisBottom(xScale))
          .append("text")
          .attr("y", height - 250)
-         .attr("x", width - 100)
+         .attr("x", width/2.) // width - 100)
          .attr("text-anchor", "end")
-         .attr("stroke", "black")
+         .attr("fill", "black")
+         .attr("font-size", "16")
          .text("Year");
 
         g.append("g")
@@ -55,9 +57,10 @@
          .append("text")
          .attr("transform", "rotate(-90)")
          .attr("y", 6)
-         .attr("dy", "-5.1em")
+         .attr("dy", "-3.1em")
          .attr("text-anchor", "end")
-         .attr("stroke", "black")
+         .attr("fill", "black")
+         .attr("font-size", "16")
          .text("Stock Price");
 
         g.selectAll(".bar")
@@ -68,6 +71,14 @@
          .attr("y", function(d) { return yScale(d.value); })
          .attr("width", xScale.bandwidth())
          .attr("height", function(d) { return height - yScale(d.value); });
+
+        g.selectAll(".point")
+         .data(data)
+         .enter().append("circle")
+         .attr("class", "point")
+         .attr("cx", function(d) { return xScale(d.year); })
+         .attr("cy", function(d) { return yScale(d.value); })
+         .attr("r", 5);
     });
 </script>
 </body>
