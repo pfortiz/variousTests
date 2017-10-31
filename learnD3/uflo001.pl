@@ -323,6 +323,8 @@ var siteID = [$siteIDlist];
 var siteLat = [$siteLatlist];
 var siteLon = [$siteLonlist];
 var zindex = 1000;
+var fullBoxX = 50;
+var fullBoxY = 50;
 var siteGeoLoc = {};
 $jsGeolocation
 
@@ -348,6 +350,10 @@ my ($z, $u, $measUnit);
 my %allContents;
 foreach $_ (@pureSiteID){
     @components = split(/\|/,$siteComponents[$i]);
+    $cid = "canvas_${_}";
+    $c = "<div id=\"$cid\" draggable=\"true\" ";
+    $c .= "ondragstart=\"drag_start(event)\" onclick=\"hideMe('$cid')\"></div>\n";
+    $canvases .= $c;
     $j = 0;
     foreach $z (@components){
         if ($z =~/:/){
@@ -496,7 +502,8 @@ function createInfoWindowContent(eventu, siteID, slat, slon){
 //            Math.floor(worldCoordinate.x * scale),
 //            Math.floor(worldCoordinate.y * scale));
     var content = "";
-    content = "Data for " + siteID + "<br>";
+    content = "Data for " + siteID + " ";
+    content += "<input type='checkbox' onClick='makePlots(this, event)' name='" +siteID+ "' value=' '><br>";
     content += "<small><table>";
     content += "<tr><td>Latitude: </td><td>" + slat + "</td></tr>";
     content += "<tr><td>Longitude: </td><td>" + slon + "</td></tr>";
@@ -728,6 +735,9 @@ function makePlot1(name, eventual){
  cName = "canvas_"+parts[0]+"_"+parts[1];
  dName = parts[0]+"_"+parts[1];
  tName = parts[0]+"_Time";
+ tbName = parts[0]+"_Time_base";
+ timeOffset = Number(data[tbName]);
+ console.info("Time offset: ", timeOffset);
  uName = parts[2];
  xLoc = Number(parts[3]) + offsetX[ parts[1] ] + 30;
  yLoc = Number(parts[4]) + offsetY[ parts[1] ] - $divH - 30;
@@ -741,7 +751,7 @@ function makePlot1(name, eventual){
  canvas.style.position = "absolute";
  canvas.style.visibility = "visible";
  canvas.style.border= "2px solid black";
- canvas.style.height = "300px";
+ canvas.style.height = "150px";
  canvas.style.width = "450px";
  canvas.style.zIndex = zindex;
  canvas.style.backgroundColor = "#eeeeee";
@@ -750,7 +760,185 @@ function makePlot1(name, eventual){
     zindex++;
 // canvas.innerHTML = parts[0] + " " +parts[1] + " " + cName + "/"+ tName + " " + data[dName] + "<br>" + data[tName];
 
- generateScatter(cName, parts[0], parts[1], uName, data[dName], data[tName]);
+// tx = data[tName];
+ var timex = new Array(data[tName].length);
+ for(var i = 0; i < timex.length; i++){
+    timex[i] = (data[tName][i] + timeOffset) * 1000.;
+//    console.info("Time: " + i + ": " + data[tName][i] + ", " + timex[i]);
+ }
+
+ geo = plotGeometry(3, 500, 200);
+ for (var i = 0; i < 3 ; i++){
+    gu = geo[i];
+    console.info("Plot " + i + " " +  gu.yTop +  " " +  gu.yBot);
+ }
+
+ generateScatter(cName, parts[0], parts[1], uName, data[dName], timex);
+}
+
+function makePlots(name, eventual){
+ var zoom = map.getZoom();
+ leName = name.name;
+ console.info("MakePlots LeName "+ leName );
+ parts = leName.split("_");
+
+ cName = "canvas_"+leName;
+ tName = leName + "_Time";
+ tbName = leName + "_Time_base";
+ timeOffset = Number(data[tbName]);
+
+ content = siteContent[leName];
+ units = siteUnits[leName];
+ nPlots = content.length;
+ console.info("Time offset: ", timeOffset);
+ console.info("things: "+ nPlots + " " + content);
+
+// dName = parts[0] + "_"+parts[1];
+// uName = parts[2];
+// xLoc = Number(parts[3]) + offsetX[ parts[1] ] + 30;
+// yLoc = Number(parts[4]) + offsetY[ parts[1] ] - $divH - 30;
+
+// xLoc = eventual.clietX + 30;
+// yLoc = eventual.clietY - $divH - 30;
+
+ xLoc = fullBoxX;
+ yLoc = fullBoxY;
+ cWidth = 400;
+ cHeight = nPlots * 100;
+ canvas = document.getElementById(cName);
+ canvas.style.left = xLoc + "px";
+ canvas.style.top  = yLoc + "px";
+ canvas.style.position = "absolute";
+ canvas.style.visibility = "visible";
+ canvas.style.border= "2px solid blue";
+ canvas.style.height = cHeight + "px";
+ canvas.style.width = cWidth + "px";
+ canvas.style.zIndex = zindex;
+ canvas.style.backgroundColor = "#eeeeff";
+// alert(name.name);
+
+    zindex++;
+// canvas.innerHTML = parts[0] + " " +parts[1] + " " + cName + "/"+ tName + " " + data[dName] + "<br>" + data[tName];
+
+// tx = data[tName];
+ var timex = new Array(data[tName].length);
+ for(var i = 0; i < timex.length; i++){
+    timex[i] = (data[tName][i] + timeOffset) * 1000.;
+//    console.info("Time: " + i + ": " + data[tName][i] + ", " + timex[i]);
+ }
+
+ geo = plotGeometry(nPlots, cWidth, cHeight);
+ mint = d3.min(timex);
+ maxt = d3.max(timex);
+ xpadding = (maxt - mint)/20.;
+ console.info("X limits-1: " + timex[0] + " " + timex[timex.length-1] );
+ console.info("X limits: " + mint + " " + maxt + " " + xpadding);
+ canvas.innerHTML = "";
+ var svg = d3.select("#"+cName)
+                .append("svg")
+                .attr("width", cWidth)
+                .attr("height", cHeight);
+  minDate = new Date(1.0* (mint-xpadding));
+  maxDate = new Date(1.0* (maxt+xpadding));
+  var mdao = new Date((maxt+mint)/2.0);
+  midDate = mdao.getDate()  + "/" + (mdao.getMonth()+1) +  "/" + mdao.getFullYear();
+  console.info("Date range: " + minDate + ", " + maxDate);
+  console.info("Mean date: " + mdao + " " + midDate);
+
+  var xscale = d3.scaleTime()
+                    .domain([minDate, maxDate])
+                    .range([geo[0].xLeft, geo[0].xRight]);
+
+ nPm1 = nPlots -1;
+ nPoints = timex.length;
+    svg.append("text")
+       .attr("transform", "translate(0,0)")
+       .attr("x", cWidth/2)
+       .attr("y", geo[0].yTop).attr("dy","-1.5em")
+       .attr("font-size", "14px")
+       .attr("text-anchor", "middle")
+       .text(leName)
+
+    svg.append("text")
+       .attr("transform", "translate(0,0)")
+       .attr("x", cWidth/2)
+       .attr("y", cHeight).attr("dy","-0.7em")
+       .attr("font-size", "12px")
+       .attr("text-anchor", "middle")
+       .text(midDate);
+ for (var i = 0; i < nPlots ; i++){
+    cont = content[i];
+    dName = leName + "_" + cont;
+    unit = units[i];
+    gu = geo[i];
+    console.info("Plot " +dName + " " + unit + " " + i + " " +  gu.yTop +  " " +  gu.yBot);
+    yData = data[dName];
+    miny = d3.min(yData);
+    maxy = d3.max(yData);
+    ypadding = (maxy - miny)/20.;
+    console.info("Y limits: " + miny + " " + maxy + " " + ypadding);
+    var yscale = d3.scaleLinear()
+                   .domain([miny-ypadding, maxy+ypadding])
+                   .range([gu.yBot, gu.yTop]);
+    var x_axis;
+    var x_axisT;
+    if( i == 0 ){
+        x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
+        x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0);
+    } else if (i == nPm1){
+        x_axis = d3.axisBottom().scale(xscale);
+        x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
+    } else {
+        x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
+        x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
+    }
+
+    var y_axis = d3.axisLeft()
+        .scale(yscale)
+        .ticks(5)
+        .tickSize(-5,0);
+    var y_axisR = d3.axisRight()
+        .ticks(5).scale(yscale).tickSize(-5,0);
+        //.tickFormat("");
+//    var effWidth = width - margin;
+
+    svg.append("g")
+       .attr("transform", "translate(" + gu.xLeft + ", "+ 0.0 + ")")
+       .call(y_axis);
+
+    svg.append("g")
+       .attr("transform", "translate(" + gu.xRight + ", "+ 0.0 + ")")
+       .call(y_axisR);
+
+    var xmargin = 0.;
+    svg.append("g")
+            .attr("transform", "translate("+ xmargin +", " + gu.yBot  +")")
+            .call(x_axis)
+
+    svg.append("g")
+       .attr("transform", "translate("+xmargin+", " + gu.yTop + ")")
+       .call(x_axisT);
+
+    svg.append("text")
+       .attr("transform", "translate("+geo[0].xLeft/3+","+ geo[i].midY +")rotate(-90)")
+       .attr("font-size", "12px")
+       .attr("text-anchor", "middle")
+       .text(cont + " [" + unit + "]");
+
+
+    for(var j=0; j < nPoints; j++){
+        svg.append("g").append("circle")
+         .attr("cx", xscale(timex[j]) )
+         .attr("cy", yscale(yData[j]) )
+         .attr("r", 2)
+         .attr("fill", "red");
+  }
+ }
+ fullBoxX += 10;
+ fullBoxY += 10;
+
+ return;
+// generateScatter(cName, parts[0], parts[1], uName, data[dName], timex);
 }
 
 function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
@@ -765,8 +953,9 @@ function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
  maxt = d3.max(timex);
  ypadding = (maxy - miny)/20.;
  xpadding = (maxt - mint)/20.;
- console.info("X limits: " + mint, maxt, xpadding);
- console.info("Y limits: " + miny, maxy, ypadding);
+ console.info("X limits-1: " + timex[0] + " " + timex[timex.length-1] );
+ console.info("X limits: " + mint + " " + maxt + " " + xpadding);
+ console.info("Y limits: " + miny + " " + maxy + " " + ypadding);
 // canvas.innerHTML = sensorID + " " + qID + " " + yData + "<br>" + timex;
  canvas.innerHTML = "";
  var svg = d3.select("#"+canvasID)
@@ -775,9 +964,20 @@ function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
                 .attr("height", height);
   var margin = 40;
 
-  var xscale = d3.scaleLinear()
-                   .domain([mint-xpadding, maxt+xpadding])
-                   .range([margin, width - margin]);
+  minDate = new Date(1.0* (mint-xpadding));
+  maxDate = new Date(1.0* (maxt+xpadding));
+  var mdao = new Date((maxt+mint)/2.0);
+  console.info("Date range: " + minDate + ", " + maxDate);
+  console.info("Mean date: " + mdao );
+//  var mda = mdao.split(' ');
+//  midDate = mda[2] + " " + mda[1] +  " " + mda[3];
+  midDate = mdao.getDate()  + "/" + (mdao.getMonth()+1) +  "/" + mdao.getFullYear();
+  console.info("Mean date: " + midDate );
+//  var xscale = d3.scaleLinear()
+  var xscale = d3.scaleTime()
+                    .domain([minDate, maxDate])
+//                   .domain([mint-xpadding, maxt+xpadding])
+                    .range([margin, width - margin]);
 
   var yscale = d3.scaleLinear()
                    .domain([miny-ypadding, maxy+ypadding])
@@ -787,7 +987,8 @@ function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
   var x_axis = d3.axisBottom().scale(xscale);
   var x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
 
-  var y_axis = d3.axisLeft().scale(yscale).tickSize(-5,0);
+  var y_axis = d3.axisLeft().scale(yscale).ticks(5).tickSize(-5,0);
+//  var y_axis = d3.axisLeft().scale(yscale).tickSize(-5,0);
   var y_axisR = d3.axisRight().scale(yscale).tickSize(-5,0).tickFormat("");
   var effWidth = width - margin;
 
@@ -812,6 +1013,12 @@ function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
        .call(x_axisT);
 
     svg.append("text")
+       .attr("transform", "translate("+margin/3+","+ height/2 +")rotate(-90)")
+       .attr("font-size", "12px")
+       .attr("text-anchor", "middle")
+       .text(qID + " [" + qUnit + "]");
+
+    svg.append("text")
        .attr("transform", "translate(0,0)")
        .attr("x", width/2)
        .attr("y", margin).attr("dy","-0.5em")
@@ -825,16 +1032,8 @@ function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
        .attr("y", height).attr("dy","-0.7em")
        .attr("font-size", "12px")
        .attr("text-anchor", "middle")
-       .text("Time [s]");
-
-    svg.append("text")
-//       .attr("transform", "translate(0,0)")
-//       .attr("transform", "rotate(-90)")
-       .attr("x", width/2)
-       .attr("y", height/2.).attr("dy","-0.7em")
-       .attr("font-size", "12px")
-       .attr("text-anchor", "end")
-       .text(qID + " [" + qUnit + "]");
+       .text(midDate);
+//       .text("Time [s]");
 
   nPoints = timex.length;
   for(var i=0; i < nPoints; i++){
@@ -845,6 +1044,43 @@ function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
          .attr("fill", "red");
   }
 
+}
+
+// returns an object with nPlots objects which contain the location of each
+// plot.
+function plotGeometry(nPlots, swidth, sheight){
+//    console.info("plotGeo args: " + nPlots + " " + sheight  + " " + swidth);
+    height = Number(sheight);
+    width = Number(swidth);
+    console.info("plotGeo args: " + nPlots + " " + height  + " " + width);
+    var xmargin = width * 0.08;
+    if(xmargin < 40){ xmargin = 40; }
+    ymarginTop = height*0.08;
+    if(ymarginTop < 40){ ymarginTop = 40; }
+    ymarginBottom = ymarginTop;
+    spacing = ymarginTop/5;
+    availableRoom = height - ymarginTop - ymarginBottom - (nPlots-1)*spacing;
+    plotHeight = Math.floor(availableRoom/nPlots);
+    xLeft = xmargin;
+    xRight = width - xmargin;
+    xWidth = width - xmargin - xmargin;
+
+    firstYtop = ymarginTop;
+    firstYbot = firstYtop + plotHeight;
+    var geometry = [];
+    for (var i = 0; i < nPlots; i++){
+        var ig = {};
+        ig.xLeft = xLeft;
+        ig.xRight = xRight;
+        ig.width = xWidth;
+        ig.yTop = firstYtop;
+        ig.yBot = firstYbot;
+        ig.midY = (ig.yTop + ig.yBot)/2.;
+        geometry.push(ig);
+        firstYtop = firstYbot + spacing;
+        firstYbot = firstYtop + plotHeight;
+    }
+    return(geometry);
 }
 
 </script>

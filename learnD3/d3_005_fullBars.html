@@ -30,6 +30,8 @@
     var g = svg.append("g")
                .attr("transform", "translate(" + 100 + "," + 100 + ")");
 
+    var tt = new Date(2000, 0, 1);
+    console.info("Date = " + tt);
     d3.csv("XYZ.csv", function(error, data) {
         if (error) {
             throw error;
@@ -55,7 +57,7 @@
          })
          .ticks(10))
          .append("text")
-         .attr("transform", "rotate(-90)")
+         .attr("transform", "rotate(-80)")
          .attr("y", 6)
          .attr("dy", "-3.1em")
          .attr("text-anchor", "end")
