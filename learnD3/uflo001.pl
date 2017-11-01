@@ -32,6 +32,8 @@ chop;
 $_ =~ s/#//;
 my @dhp = split(/,/);
 my $ncols = $#dhp + 1;
+my $divH = 300;
+my $divW = 450;
 
 while(<D>){
     chop;
@@ -209,10 +211,13 @@ if ($toYear ne ""){
     $laToHour = $hhh + $mmm/60. + $sss/3600.;
     # Ready to recompute $toTime, which is the Unix timestamp
     $toTime = timelocal($sss,$mmm,$hhh,$tmday,$tmon-1,$tyear);
+} else {
+    $tmday = sprintf("%02d", $tmday);
 }
 $uthour = ceil($laToHour);
 
 my $ifile = "$baseDir/$tyear/$tsmon/$tmday/solar.dat";
+print STDERR "Rescue file: $ifile\n";
 my $fyOptions = ""; #"<option value="$_">$_</option>";
 my $fmOptions = "";
 my $fdOptions = "";
@@ -304,13 +309,20 @@ Content-type: text/html
   width: 100%;
   border: 1px solid skyblue;
   }
+  td {
+    font-family:"Verdana";
+    font-size:14;
+  }
 </style>
 
 <script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+
 
 </head>
 
 <!-- pfo has introduced the JS functions at this level -->
+
 <script>
 <!-- pfo has introduced the necessary data at this level -->
 var bsize = {
@@ -326,11 +338,13 @@ var zindex = 1000;
 var fullBoxX = 50;
 var fullBoxY = 50;
 var siteGeoLoc = {};
+var divH = $divH;
 $jsGeolocation
 
 var nSites = $nSites;
 var siteContent = {};
 var siteUnits = {};
+var siteUCD = {};
 var data = {};
 var map;
 var markers = [];
@@ -344,9 +358,7 @@ my $senid = "";
 my $canvases = "";
 $i = 0;
 my $divMC = "black";
-my $divH = 300;
-my $divW = 450;
-my ($z, $u, $measUnit);
+my ($z, $u, $ucd, $qUnit, $qUCD);
 my %allContents;
 foreach $_ (@pureSiteID){
     @components = split(/\|/,$siteComponents[$i]);
@@ -357,19 +369,22 @@ foreach $_ (@pureSiteID){
     $j = 0;
     foreach $z (@components){
         if ($z =~/:/){
-            ($c, $u) = split(/:/,$z);
+            ($c, $u,$ucd) = split(/:/,$z);
         } else {
             $c = $z;
             $u = "";
+            $ucd = "DEFAULT";
         }
         $allContents{$c} = 1;
         if($j == 0){
             $senid = "\"$c\"";
-            $measUnit = "\"$u\"";
+            $qUnit = "\"$u\"";
+            $qUCD = "\"$ucd\"";
 
         } else {
             $senid .= ", \"$c\"";
-            $measUnit .= ", \"$u\"";
+            $qUnit .= ", \"$u\"";
+            $qUCD .= ", \"$ucd\"";
         }
         $cid = "canvas_${_}_$c";
         $c = "<div id=\"$cid\" draggable=\"true\" ";
@@ -382,11 +397,13 @@ foreach $_ (@pureSiteID){
     }
     print <<"SENSORE";
 siteContent["$_"] = [$senid];
-siteUnits["$_"] = [$measUnit];
+siteUnits["$_"] = [$qUnit];
+siteUCD["$_"] = [$qUCD];
 SENSORE
 #    print STDERR "$senid\n";
     $i++;
 }
+$canvases = "";
 
 $i = 0;
 $j = 0;
@@ -403,52 +420,22 @@ foreach $_ (sort keys %data){
 
 print <<"HEADER";
 
-function showDiv(divId)
-{
-    var did = document.getElementById(divId);
-    did.style.visibility = "visible";
-}
-
-function hideMe(divId)
-{
-//    console.info("Hallo, hiding: " +  divId);
-    var did = document.getElementById(divId);
-    did.style.visibility = "hidden";
-}
-
-
-function drag_start(event) 
-{
-    var style = window.getComputedStyle(event.target, null);
-    var str = (parseInt(style.getPropertyValue("left")) - event.clientX) +
-',' + (parseInt(style.getPropertyValue("top")) - event.clientY)+ ',' +
-event.target.id;
-    event.dataTransfer.setData("Text",str);
-} 
-
-function dropit(event) 
-{
-   var offset = event.dataTransfer.getData("Text").split(',');
-   var dm = document.getElementById(offset[2]);
-   dm.style.left = (event.clientX + parseInt(offset[0],10)) + 'px';
-   dm.style.top = (event.clientY + parseInt(offset[1],10)) + 'px';
-   event.preventDefault();
-   return false;
-}
-
-function drag_over(event)
-{
-  event.preventDefault();
-  return false;
-}
-
-function loadDiv(did)
-{
-    var dvd = document.getElementById(did);
-    divi.style.left = "50px";
-    divi.style.top = "50px";
-    divi.style.visibility = "hidden";
-    divi.style.position = "relative";
+var mdata = {};
+for( var s = 0; s < siteID.length; s++){
+    site = siteID[s];
+    cont = siteContent[site];
+    for (var c = 0; c < cont.length; c++){
+        qtty = cont[c];
+        tag = site + "_" + qtty;
+//        console.info("Defining: " + tag );
+        unit = siteUnits[site][c];
+        uzi = siteUCD[site][c];
+//        console.info("Defining: " + tag + " " + unit + " " + uzi);
+        var meta = {};
+        meta.unit = unit;
+        meta.ucd = uzi;
+        mdata[tag] = meta;
+    }
 }
 
 function initMap() {
@@ -502,22 +489,33 @@ function createInfoWindowContent(eventu, siteID, slat, slon){
 //            Math.floor(worldCoordinate.x * scale),
 //            Math.floor(worldCoordinate.y * scale));
     var content = "";
+//    col25 = tempScale(25);
+//    console.info("Colour for 25C: " + col25 + " siteID: " + siteID);
     content = "Data for " + siteID + " ";
     content += "<input type='checkbox' onClick='makePlots(this, event)' name='" +siteID+ "' value=' '><br>";
     content += "<small><table>";
-    content += "<tr><td>Latitude: </td><td>" + slat + "</td></tr>";
-    content += "<tr><td>Longitude: </td><td>" + slon + "</td></tr>";
+    content += "<tr><td>Latitude: </td><td>" + slat + "</td><td></td></tr>";
+    content += "<tr><td>Longitude: </td><td>" + slon + "</td><td></td></tr>";
     var dataContent = siteContent[siteID];
+    console.info("dataContent: " + dataContent);
     console.info("pixels x: "+ eventu.clientX + " y: " + eventu.clientY );
     prime = "_" + eventu.clientX + "_" + eventu.clientY;
     for(i = 0; i < dataContent.length; i++){
         q = dataContent[i];
-        u = siteUnits[siteID][i];
         k = siteID + "_" + q;
-        kPrime = k + "_" + u + prime;
+        u = siteUnits[siteID][i];
+//        uzi = siteUCD[siteID][i];
+        uzi = mdata[k].ucd;
+//        uzi = "METxTEMP";
+        mj = siteID + " " + q + " " + u + " " + uzi;
+        console.info(mj);
+        kPrime = k + "_" + prime;
+//        kPrime = k + "_" + u + "_" + uzi + prime;
+//        kPrime = k + "_" + u + "_" + "METxTEMP" + prime;
         len = data[k].length -1;
 
-        content += "<tr><td><input type='checkbox' onClick='makePlot1(this, event)' name='" +kPrime+ "' value=' '><span>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td></tr>";
+        content += "<tr><td><input type='checkbox' onClick='makePlot1(this, event)' name='" +kPrime+ "' value=' '><span>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td>";
+        content += "<td><input type='checkbox'></td></tr>";
     }
 //onMouseOver="changeLabel('the Update')">
     content += "</table></small>";
@@ -712,9 +710,68 @@ onMouseOver="changeLabel('the SVG')">
 
 </td>
 </table>
+
 <script>
 
 //document.getElementById("sunCircle").addEventListener("mouseover", changeLabel);
+
+function showDiv(divId)
+{
+    var did = document.getElementById(divId);
+    did.style.visibility = "visible";
+}
+
+
+function hideMe(divId)
+{
+//    console.info("Hallo, hiding: " +  divId);
+    var did = document.getElementById(divId);
+    did.style.visibility = "hidden";
+}
+
+function raiseMe(divId)
+{
+    var did = document.getElementById(divId);
+    did.style.zIndex = zindex;
+    zindex++;
+}
+
+
+function drag_start(event) 
+{
+    var style = window.getComputedStyle(event.target, null);
+    var str = (parseInt(style.getPropertyValue("left")) - event.clientX) +
+',' + (parseInt(style.getPropertyValue("top")) - event.clientY)+ ',' +
+event.target.id;
+    event.dataTransfer.setData("Text",str);
+} 
+
+function dropit(event) 
+{
+   var offset = event.dataTransfer.getData("Text").split(',');
+   var dm = document.getElementById(offset[2]);
+   dm.style.left = (event.clientX + parseInt(offset[0],10)) + 'px';
+   dm.style.top = (event.clientY + parseInt(offset[1],10)) + 'px';
+   event.preventDefault();
+   return false;
+}
+
+function drag_over(event)
+{
+  event.preventDefault();
+  return false;
+}
+
+function loadDiv(did)
+{
+    var dvd = document.getElementById(did);
+    divi.style.left = "50px";
+    divi.style.top = "50px";
+    divi.style.visibility = "hidden";
+    divi.style.position = "relative";
+}
+
+
 
 function changeLabel(message){
  var zoom = map.getZoom();
@@ -732,18 +789,20 @@ function makePlot1(name, eventual){
  console.info("LeName "+ leName );
  parts = leName.split("_");
 
- cName = "canvas_"+parts[0]+"_"+parts[1];
  dName = parts[0]+"_"+parts[1];
+ cName = "canvas_"+dName;
+ createDivIfNeeded(cName);
+
  tName = parts[0]+"_Time";
  tbName = parts[0]+"_Time_base";
  timeOffset = Number(data[tbName]);
  console.info("Time offset: ", timeOffset);
- uName = parts[2];
- xLoc = Number(parts[3]) + offsetX[ parts[1] ] + 30;
- yLoc = Number(parts[4]) + offsetY[ parts[1] ] - $divH - 30;
-
-// xLoc = eventual.clietX + 30;
-// yLoc = eventual.clietY - $divH - 30;
+// uName = parts[2];
+// uUcd = parts[3];
+ uName = mdata[dName].unit;
+ uUcd = mdata[dName].ucd;
+ xLoc = Number(parts[2]) + offsetX[ parts[1] ] + 30;
+ yLoc = Number(parts[3]) + offsetY[ parts[1] ] - divH - 30;
 
  canvas = document.getElementById(cName);
  canvas.style.left = xLoc + "px";
@@ -773,7 +832,7 @@ function makePlot1(name, eventual){
     console.info("Plot " + i + " " +  gu.yTop +  " " +  gu.yBot);
  }
 
- generateScatter(cName, parts[0], parts[1], uName, data[dName], timex);
+ generateScatter(cName, parts[0], parts[1], uName, uUcd, data[dName], timex);
 }
 
 function makePlots(name, eventual){
@@ -783,23 +842,18 @@ function makePlots(name, eventual){
  parts = leName.split("_");
 
  cName = "canvas_"+leName;
+ createDivIfNeeded(cName);
+
  tName = leName + "_Time";
  tbName = leName + "_Time_base";
  timeOffset = Number(data[tbName]);
 
  content = siteContent[leName];
  units = siteUnits[leName];
+ ucds = siteUCD[leName];
  nPlots = content.length;
  console.info("Time offset: ", timeOffset);
  console.info("things: "+ nPlots + " " + content);
-
-// dName = parts[0] + "_"+parts[1];
-// uName = parts[2];
-// xLoc = Number(parts[3]) + offsetX[ parts[1] ] + 30;
-// yLoc = Number(parts[4]) + offsetY[ parts[1] ] - $divH - 30;
-
-// xLoc = eventual.clietX + 30;
-// yLoc = eventual.clietY - $divH - 30;
 
  xLoc = fullBoxX;
  yLoc = fullBoxY;
@@ -866,10 +920,12 @@ function makePlots(name, eventual){
        .attr("font-size", "12px")
        .attr("text-anchor", "middle")
        .text(midDate);
+ var laScale;
  for (var i = 0; i < nPlots ; i++){
     cont = content[i];
     dName = leName + "_" + cont;
     unit = units[i];
+    laScale = cScales[ucds[i]];
     gu = geo[i];
     console.info("Plot " +dName + " " + unit + " " + i + " " +  gu.yTop +  " " +  gu.yBot);
     yData = data[dName];
@@ -931,17 +987,42 @@ function makePlots(name, eventual){
          .attr("cx", xscale(timex[j]) )
          .attr("cy", yscale(yData[j]) )
          .attr("r", 2)
-         .attr("fill", "red");
+         .attr("fill", laScale(yData[j]));
+//         .attr("fill", "red");
   }
  }
  fullBoxX += 10;
  fullBoxY += 10;
 
  return;
-// generateScatter(cName, parts[0], parts[1], uName, data[dName], timex);
 }
 
-function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
+function createDivIfNeeded(tag){
+    kDoom = document.getElementById(tag);
+    console.info("No-0.5, Doom: " + kDoom);
+    if ( kDoom == null){
+        console.info("No, body does not contain: " + tag);
+        d3.select("body").append("div")
+            .attr("id", tag)
+            .attr("draggable", true)
+            .attr("ondragstart", "drag_start(event)")
+            .attr("onclick", "raiseMe('" + tag + "')")
+            .attr("ondblclick", "hideMe('" + tag + "')")
+        kDuomo = document.getElementById(tag);
+        console.info("No-1.5, Duomo: " + kDuomo);
+        if ( kDuomo == null){
+            console.info("No-2, body does not contain: " + tag);
+        } else {
+            console.info("Yes-2, body contains: " + tag);
+            console.info("result-2: " + kDuomo);
+        }
+    } else {
+        console.info("Yes, body contains: " + tag);
+        console.info("result: " + kDoom);
+    }
+}
+
+function generateScatter(canvasID, sensorID, qID, qUnit, qUcd, yData, timex){
  canvas = document.getElementById(cName);
  console.info("Canvas ID: " + canvasID);
  width = canvas.style.width.replace("px","");
@@ -1036,13 +1117,36 @@ function generateScatter(canvasID, sensorID, qID, qUnit, yData, timex){
 //       .text("Time [s]");
 
   nPoints = timex.length;
+//  console.info("qUcd = " + qUcd + " " + cScales[qUcd]);
+  var laScale = cScales[qUcd];
   for(var i=0; i < nPoints; i++){
         svg.append("g").append("circle")
          .attr("cx", xscale(timex[i]) )
          .attr("cy", yscale(yData[i]) )
          .attr("r", 3)
-         .attr("fill", "red");
+         .attr("fill", laScale(yData[i]));
+//         .attr("fill", cScales[qUcd](yData[i]));
+//         .attr("fill", "red");
   }
+
+//  if(qID == "Temp"){
+//    for(var i=0; i < nPoints; i++){
+//        svg.append("g").append("circle")
+//         .attr("cx", xscale(timex[i]) )
+//         .attr("cy", yscale(yData[i]) )
+//         .attr("r", 3)
+//         .attr("fill", tempScale(yData[i]));
+////         .attr("fill", "red");
+//    }
+//  } else {
+//    for(var i=0; i < nPoints; i++){
+//        svg.append("g").append("circle")
+//         .attr("cx", xscale(timex[i]) )
+//         .attr("cy", yscale(yData[i]) )
+//         .attr("r", 3)
+//         .attr("fill", "red");
+//    }
+//  }
 
 }
 
@@ -1083,12 +1187,82 @@ function plotGeometry(nPlots, swidth, sheight){
     return(geometry);
 }
 
+var temperatureScale = d3.scaleLinear()
+                   .domain([-20.0, 40.0])
+                   .range([1.0, 0.0]);
+
+var relativeHumidityScale = d3.scaleLinear()
+                   .domain([0.0, 100.0])
+                   .range([0.0, 1.0]);
+
+var noiseScale = d3.scaleLinear()
+                   .domain([45.0, 80.0])
+                   .range([0.0, 1.0]);
+
+var noScale = d3.scaleLinear()
+                   .domain([0.0, 200.0])
+                   .range([0.4, 1.0]);
+
+var no2Scale = d3.scaleLinear()
+                   .domain([0.0, 70.0])
+                   .range([0.0, 1.0]);
+
+var defScale = d3.scaleLinear()
+                   .domain([0.0, 200.0])
+                   .range([0.0, 1.0]);
+
+function tempScale(temp) {
+    ct = d3.interpolateRainbow( temperatureScale(temp));
+    return (ct);
+}
+
+function relHumScale(rh) {
+    ct =  d3.interpolateSpectral( relativeHumidityScale(rh) ) ;
+    return ( ct );
+}
+
+function defaultScale(val) {
+    ct = d3.interpolateGreys( defScale(val) );
+    return ( ct );
+}
+
+function noisyScale(val) {
+    ct =  d3.interpolateReds( noiseScale(val) );
+    return ( ct );
+}
+
+function no_Scale(val) {
+    return ( d3.interpolateBuPu( noScale(val) ) );
+}
+
+function no2_Scale(val) {
+    return ( d3.interpolateYlOrBr( no2Scale(val) ) );
+}
+
+var coScale = d3.scaleLinear()
+                   .domain([0.0, 0.8])
+                   .range([0.2, 1.0]);
+
+function co_Scale(val) {
+    return ( d3.interpolateYlGn( coScale(val) ) );
+}
+
+var cScales = {};
+cScales.METxTEMP = tempScale;
+cScales.METxRH = relHumScale;
+cScales.AQxNOISE = noisyScale;
+cScales.AQxNO = no_Scale;
+cScales.AQxNO2 = no2_Scale;
+cScales.AQxCO = co_Scale;
+
+
 </script>
 </body>
 </html>
 HEADER2
 exit;
 
+# END OF THE MAIN SCRIPT, WHATEVER BELOW IS NOT USED.
 
 print <<"HEADER";
 <script type="text/javascript">
@@ -1103,6 +1277,14 @@ function hideMe(divId)
 {
     var did = document.getElementById(divId);
     did.style.visibility = "hidden";
+}
+
+function raiseMe(divId)
+{
+    var did = document.getElementById(divId);
+    did.style.visibility = "hidden";
+    did.style.zIndex = zindex;
+    zindex++;
 }
 
 
