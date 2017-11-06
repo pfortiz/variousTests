@@ -186,7 +186,7 @@ my $lTime = sprintf("%02d:%02d:%02d", $thour, $tmin, $tsec);
 my $q = CGI->new();
 
 my $toYear = $q->param('toYear');
-my $fromYear = $q->param('toYear');
+my $fromYear = $q->param('fromYear');
 my ($lfhour, $uthour);
 if ($fromYear ne ""){
     $fmday = sprintf("%02d", $q->param('fromDay'));
@@ -414,9 +414,12 @@ $canvases = "";
 
 $i = 0;
 $j = 0;
+my ($plotButtons, $button);
 foreach $_ (sort keys %allContents){
     print "offsetX[\"$_\"] = $i;\n";
     print "offsetY[\"$_\"] = $j;\n";
+    $button = "<input name=\"plot$_\" type=\"submit\" value=\"Plot $_\" onclick=\"multiPlot('$_',1,'mp')\">";
+    $plotButtons .= "$button\n<br>\n";
     $i+= 5;
     $j+= 10;
 }
@@ -428,13 +431,21 @@ foreach $_ (sort keys %data){
 print <<"HEADER";
 
 var mdata = {};
+var varsByCont = {};
+var hamlet = {};
 for( var s = 0; s < siteID.length; s++){
     site = siteID[s];
     cont = siteContent[site];
     for (var c = 0; c < cont.length; c++){
         qtty = cont[c];
-        tag = site + "_" + cont[c];
-//        tag = site + "_" + qtty;
+        tag = site + "_" + qtty;
+        hamlet[tag] = 1;
+        console.info("Hamlet: " + tag);
+        if( varsByCont[qtty] == null){
+            varsByCont[qtty] = [];
+        }
+        varsByCont[qtty].push(tag);
+//        tag = site + "_" + cont[c];
 //        console.info("Defining: " + tag );
 //        unit = siteUnits[site][c];
 //        uzi = siteUCD[site][c];
@@ -447,6 +458,14 @@ for( var s = 0; s < siteID.length; s++){
         mdata[tag] = meta;
     }
 }
+
+/*
+kq = Object.keys(varsByCont);
+for (var qq = 0; qq < kq.length; qq++){
+    cle = kq[qq];
+    console.info("Key: " + cle + " values: " + varsByCont[cle]);
+}
+*/
 
 function initMap() {
 
@@ -536,6 +555,7 @@ function createInfoWindowContent(eventu, siteID, slat, slon){
     return content;
 }
 
+var theMarkers = [];
 function setMarkers(map) {
   // Adds markers to the map.
   // Marker sizes are expressed as a Size of X,Y where the origin of the image
@@ -589,6 +609,7 @@ for($i = 0; $i < $nSites; $i++){
 //    var msg = siteID[i];
 //    marker$i.addListener('mouseover', function(){alerta($sid)} );
     marker$i.addListener('click', function(){alerta(event, $sid)} );
+    theMarkers.push(marker$i);
 MARKER
 }
 
@@ -646,19 +667,14 @@ Data for $tmday/$tsmon/$tyear  zoom = $mapZoom $slon $slat
 <div id="map"></div>
 <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8Lq5FuZylrN-pO73Fv5_UU-Lg83N_vMY&callback=initMap">
 </script>
-<div id="wishes" style="visibility: hidden; float: right">
-<input name="plotWish" type="button" value="Plot selected"
-onClick="plotSelected(1)">
-<input name="clearWish" type="button" value="Clear selected"
-onClick="clearSelected()">
-</div>
+
 <div id="mdiv"></div>
 $canvases
 
 
 
 <div id="resubmit">
-<form action="uflo001.pl" method="post">
+<form action="uflo002.pl" method="post">
 <small>
 Change the period of observations: 
 &nbsp; &nbsp;
@@ -728,6 +744,17 @@ onMouseOver="changeLabel('the SVG')">
 <br/>
 <br/>
 
+<div id="buttons">
+
+$plotButtons
+</div>
+<br><br><br>
+<div id="wishes" style="backgroundcolor: #ffffee; visibility: hidden; float: right">
+<input name="plotWish" type="button" value="Plot selected"
+onClick="plotSelected(1)">
+<input name="clearWish" type="button" value="Clear selected"
+onClick="clearSelected()">
+</div>
 </td>
 </table>
 
@@ -816,6 +843,333 @@ function textSize(text) {
 }
 
 
+function multiPlot(qtty, scaling, oldCanvas){
+    can = document.getElementById(oldCanvas);
+    if ( can !== null){
+        d3.select("#" + oldCanvas).remove();
+    }
+//    things = Object.keys(wishList);
+    nmrkrs = theMarkers.length;
+    var inside = [];
+    for(var km = 0 ; km < nmrkrs; km++){
+        mrkr = theMarkers[km];
+//        console.info("Marker " + mrkr.label);
+        combo = mrkr.label + "_" + qtty;
+//        console.info("Is it in? " + map.getBounds().contains(mrkr.getPosition()) );
+        if(map.getBounds().contains(mrkr.getPosition()) ){
+            if( hamlet[combo] == 1){
+                inside.push(combo);
+            }
+        }
+    }
+    things = varsByCont[qtty];
+    console.info("wishList to plot: "+ things );
+    things = inside;
+    console.info("realList to plot: "+ inside );
+    var qToPlot = {};
+    var siteColour = {};
+    for(var i = 0; i < things.length; i++){
+        parts = things[i].split("_");
+        console.info("Dealing with: " + things[i] + " " + parts);
+//        qToPlot[parts[i]] += things[i] + " ";
+        if( qToPlot[parts[1]] == null){
+            qToPlot[parts[1]] = parts[0];
+        } else {
+            text = " " + parts[0];
+            qToPlot[parts[1]] += text;
+        }
+        siteColour[parts[0]] = 1;
+    }
+    content = Object.keys(qToPlot);
+    sites = Object.keys(siteColour);
+    for(var i = 0; i < content.length; i++){
+        cle = content[i];
+        console.info("For " + cle + " I need: " + qToPlot[cle]);
+    }
+    nPlots = content.length;
+    console.info("Number of plots needed: " + nPlots);
+    var minTime = [];
+    var maxTime = [];
+    var siteTime = {};
+    nAllSites = sites.length;
+    frac = 1./(nAllSites+0);
+    for(var i = 0; i < sites.length; i++){
+        site = sites[i];
+        console.info("Site: "+  site);
+        siteColour[site] = d3.interpolateRainbow( i* frac);
+        console.info("Colour: " + site + " " + siteColour[site] + " " +(i*frac));
+        tName = site + "_Time";
+        tbName = site + "_Time_base";
+        timeOffset = Number(data[tbName]);
+
+        var timex = new Array(data[tName].length);
+        for(var t = 0; t < timex.length; t++){
+           timex[t] = (data[tName][t] + timeOffset) * 1000.;
+        }
+        siteTime[site] = timex;
+        minTime.push( d3.min(timex) );
+        maxTime.push( d3.max(timex) );
+    }
+    mint = d3.min(minTime);
+    maxt = d3.max(maxTime);
+    cName = "canvas_Multi" + mindex;
+    mindex++;
+    var location = createDivIfNeeded(cName);
+    console.info("Pallete: " + siteColour);
+    console.info("Time range: " + mint + " to " + maxt);
+    xpadding = (maxt - mint)/20.;
+    minDate = new Date(1.0* (mint-xpadding));
+    maxDate = new Date(1.0* (maxt+xpadding));
+    var mdao = new Date((maxt+mint)/2.0);
+    midDate = mdao.getDate()  + " / " + (mdao.getMonth()+1) +  " / " + mdao.getFullYear();
+    console.info("Date range: " + minDate + ", " + maxDate);
+    console.info("Mean date: " + mdao + " " + midDate);
+
+
+    frameColour = "brown";
+    xLoc = fullBoxX;
+    yLoc = fullBoxY;
+    cWidth = 400 * scaling;
+    cHeight = (80 + nPlots * 120 + nAllSites*10) * scaling;
+    canvas = document.getElementById(cName);
+    canvas.style.left = xLoc + "px";
+    canvas.style.top  = yLoc + "px";
+    canvas.style.position = "absolute";
+    canvas.style.visibility = "visible";
+    canvas.style.border= "2px solid " + frameColour;
+    canvas.style.height = cHeight + "px";
+    canvas.style.width = cWidth + "px";
+    canvas.style.zIndex = zindex;
+    canvas.style.backgroundColor = "#ffeeee";
+    geo1 = plotGeometry(nPlots, cWidth, cHeight, 0);
+    zindex++;
+
+
+    console.info("things: "+ nPlots + " " + content);
+
+// console.info("Time offset: ", timeOffset);
+//
+// content = siteContent[leName];
+//
+//
+// console.info("X limits-1: " + timex[0] + " " + timex[timex.length-1] );
+// console.info("X limits: " + mint + " " + maxt + " " + xpadding);
+
+    canvas.innerHTML = "";
+    var svg = d3.select("#"+cName)
+                .append("svg")
+                .attr("width", cWidth)
+                .attr("height", cHeight);
+
+    var xscale = d3.scaleTime()
+                    .domain([minDate, maxDate])
+                    .range([geo1[0].xLeft, geo1[0].xRight]);
+
+    var xmargin = 0.;
+    nPm1 = nPlots -1;
+    svg.append("text")
+       .attr("transform", "translate(0,0)")
+       .attr("x", cWidth/2)
+       .attr("y", 0).attr("dy","1.5em")
+       .attr("font-size", "14px")
+       .attr("text-anchor", "middle")
+       .text("Customised Charts for " + midDate);
+    if(scaling == 1){
+        face = "+";
+        scaling = 2;
+    } else {
+        face = "-";
+        scaling = 1;
+    }
+    pTop = cHeight - 24;
+    pLeft = cWidth - 24;
+    pMidX = cWidth -12;
+    pMidY = cHeight -12;
+    svg.append("rect").attr("x", pLeft).attr("y", 0)
+        .attr("width","20").attr("height","20")
+        .attr("onclick", "hideMe('" + cName +  "')")
+        .attr("fill",frameColour);
+    svg.append("text")
+       .attr("transform", "translate(0,0)")
+       .attr("onclick", "hideMe('" + cName +  "')")
+       .attr("x", pMidX).attr("y", "12").attr("dy","+0.25em")
+       .attr("font-size", "16px").attr("text-anchor", "middle")
+       .attr("fill", "white").text("X");
+
+    svg.append("rect")
+        .attr("x", pLeft)
+        .attr("y", pTop)
+        .attr("width","20")
+        .attr("height","20")
+        .attr("onclick", "multiPlot('" +qtty + "','" + scaling + "','" + cName +  "')")
+        .attr("fill",frameColour);
+
+    svg.append("text")
+       .attr("transform", "translate(0,0)")
+       .attr("onclick", "multiPlot('" +qtty + "','" + scaling + "','" + cName +  "')")
+       .attr("x", pMidX) // .attr("dx", "-0.5em")
+       .attr("y", pMidY).attr("dy","+0.25em")
+       .attr("font-size", "16px")
+       .attr("text-anchor", "middle")
+       .attr("fill", "white")
+       .text(face);
+
+    tlabel = sites[0];
+    var nSitesPerLine = [];
+    maxWidth = geo1[0].width;
+    accountedSites = 0;
+    for(var x = 1; x < nAllSites; x++){
+        site = sites[x];
+        try1 = tlabel + " " + site;
+        console.info("tlabel:" + tlabel + " try: " + try1);
+        tw = textSize(try1);
+        console.info("width(" + try1 + ") = " + tw.width +"/" + maxWidth);
+        if(tw.width > maxWidth){
+            console.info("Oops, it doesn't fit. do use " + tlabel);
+            nsitios =  tlabel.split(" ").length ;
+            nSitesPerLine.push( nsitios );
+            accountedSites += nsitios;
+            tlabel = site;
+        } else {
+            console.info("AOK for " + try1);
+            tlabel = try1;
+        }
+    }
+    if(accountedSites < nAllSites){
+        nSitesPerLine.push( nAllSites - accountedSites ) ;
+    }
+    sid = 0;
+    dyval = 3.0;
+    nspl = nSitesPerLine.length;
+    geo = plotGeometry(nPlots, cWidth, cHeight, nspl*15);
+    for(var l =0; l < nspl; l++){
+        npl = nSitesPerLine[l];
+        console.info("putting " + npl + " sites in line " + l);
+        xStep = geo[0].width/npl;
+        dy = dyval + "em";
+        dyval += 1.2;
+        for(var spl = 0; spl < npl; spl++){
+            xLoc = geo[0].xLeft + spl * xStep;
+            site = sites[sid];
+            color = siteColour[site];
+            svg.append("text")
+               .style("fill", color)
+               .attr("transform", "translate(0,0)")
+               .attr("x", xLoc)
+               .attr("y", 0).attr("dy", dy)
+               .attr("font-size", "12px")
+               .attr("text-anchor", "start")
+               .text(site);
+            sid++;
+        }
+    }
+
+    for (var c = 0; c < nPlots ; c++){
+        gu = geo[c];
+        cont = content[c];
+        parts = qToPlot[cont].split(" ");
+        nSites = parts.length;
+        console.info("For " + cont + " I need: " + nSites + " " + parts);
+        minVal = [];
+        maxVal = [];
+        for (var z = 0; z < nSites ; z++){
+            dName = parts[z] + "_" + cont;
+            console.info("addressing: " + dName);
+            minVal.push( d3.min(data[dName]) );
+            maxVal.push( d3.max(data[dName]) );
+        }
+        miny = d3.min(minVal);
+        maxy = d3.max(maxVal);
+        console.info("Extreme for : " + cont + " " + miny + " , " + maxy);
+
+        // In conditions to draw the frame after defining the scales
+        ypadding = (maxy - miny)/20.;
+        console.info("Y limits: " + miny + " " + maxy + " " + ypadding);
+        var yscale = d3.scaleLinear()
+                .domain([miny-ypadding, maxy+ypadding])
+                .range([gu.yBot, gu.yTop]);
+        var x_axis;
+        var x_axisT;
+        if(nPlots == 1){
+            x_axis = d3.axisBottom().scale(xscale).tickSize(-5.0);
+            x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0);
+        } else {
+            if( c == 0 ){
+                x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
+                x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0);
+            } else {
+                if (c == nPm1){
+                    x_axis = d3.axisBottom().scale(xscale).tickSize(-5.0);
+                    x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
+                } else {
+                    x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
+                    x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
+                }
+            }
+        }
+
+        var y_axis = d3.axisLeft()
+            .scale(yscale)
+            .ticks(5)
+            .tickSize(-5,0);
+        var y_axisR = d3.axisRight()
+            .ticks(5).scale(yscale).tickSize(-5,0);
+            //.tickFormat("");
+    
+        svg.append("g")
+           .attr("transform", "translate(" + gu.xLeft + ", "+ 0.0 + ")")
+           .call(y_axis);
+    
+        svg.append("g")
+           .attr("transform", "translate(" + gu.xRight + ", "+ 0.0 + ")")
+           .call(y_axisR);
+    
+        svg.append("g")
+                .attr("transform", "translate("+ xmargin +", " + gu.yBot  +")")
+                .call(x_axis)
+    
+        svg.append("g")
+           .attr("transform", "translate("+xmargin+", " + gu.yTop + ")")
+           .call(x_axisT);
+    
+        console.info(" trace after painting axes for : " + cont );
+        svg.append("text")
+           .attr("transform", "translate("+geo[0].xLeft/3+","+ gu.midY +")rotate(-90)")
+           .attr("font-size", "12px")
+           .attr("text-anchor", "middle")
+           .text(cont );
+//           .text(cont + " [" + unit + "]");
+        console.info("double check nSites: " + nSites );
+        for (var z = 0; z < nSites ; z++){
+            site = parts[z];
+            color = siteColour[site];
+            dName = site + "_" + cont;
+//            console.info("Plotting: " + dName + " colour: " + color);
+            yData = data[dName];
+            timex = siteTime[site];
+            nPoints = timex.length;
+            for(var j=0; j < nPoints; j++){
+                svg.append("g").append("circle")
+                .attr("cx", xscale(timex[j]) )
+                .attr("cy", yscale(yData[j]) )
+                .attr("r", 2)
+                .attr("fill", color);
+//                .attr("fill", laScale(yData[j]));
+    //          .attr("fill", "red");
+            }
+        }
+    }
+    fullBoxX += 50;
+    fullBoxY += 50;
+    return;
+}
+
+function markClick(obj, e){
+    console.info("ClickClient: " + e.clientX + ", " + e.clientY);
+    console.info("ClickScreen: " + e.screenX + ", " + e.screenY);
+    console.dir(obj);
+}
+
 function plotSelected(scaling, oldCanvas){
     can = document.getElementById(oldCanvas);
     if ( can !== null){
@@ -823,6 +1177,9 @@ function plotSelected(scaling, oldCanvas){
     }
     things = Object.keys(wishList);
     console.info("wishList to plot: "+ things );
+    if(things == 0){
+        return;
+    }
     var qToPlot = {};
     var siteColour = {};
     for(var i = 0; i < things.length; i++){
@@ -885,6 +1242,7 @@ function plotSelected(scaling, oldCanvas){
 
     xLoc = fullBoxX;
     yLoc = fullBoxY;
+    frameColour = "green";
     cWidth = 400 * scaling;
     cHeight = (80 + nPlots * 120 + nAllSites*10) * scaling;
     canvas = document.getElementById(cName);
@@ -892,7 +1250,7 @@ function plotSelected(scaling, oldCanvas){
     canvas.style.top  = yLoc + "px";
     canvas.style.position = "absolute";
     canvas.style.visibility = "visible";
-    canvas.style.border= "2px solid green";
+    canvas.style.border= "2px solid " + frameColour;
     canvas.style.height = cHeight + "px";
     canvas.style.width = cWidth + "px";
     canvas.style.zIndex = zindex;
@@ -903,17 +1261,11 @@ function plotSelected(scaling, oldCanvas){
 
     console.info("things: "+ nPlots + " " + content);
 
-// console.info("Time offset: ", timeOffset);
-//
-// content = siteContent[leName];
-//
-//
-// console.info("X limits-1: " + timex[0] + " " + timex[timex.length-1] );
-// console.info("X limits: " + mint + " " + maxt + " " + xpadding);
 
     canvas.innerHTML = "";
     var svg = d3.select("#"+cName)
                 .append("svg")
+                .attr("onclick", "markClick(this,event)")
                 .attr("width", cWidth)
                 .attr("height", cHeight);
 
@@ -931,29 +1283,42 @@ function plotSelected(scaling, oldCanvas){
        .attr("text-anchor", "middle")
        .text("Customised Charts for " + midDate);
     if(scaling == 1){
-        face = "x2";
+        face = "+";
         scaling = 2;
     } else {
-        face = "x1";
+        face = "-";
         scaling = 1;
     }
     pTop = cHeight - 24;
     pLeft = cWidth - 24;
+    pMidX = cWidth -12;
+    pMidY = cHeight -12;
+    svg.append("rect").attr("x", pLeft).attr("y", 0)
+        .attr("width","20").attr("height","20")
+        .attr("onclick", "hideMe('" + cName +  "')")
+        .attr("fill",frameColour);
+    svg.append("text")
+       .attr("transform", "translate(0,0)")
+       .attr("onclick", "hideMe('" + cName +  "')")
+       .attr("x", pMidX).attr("y", "12").attr("dy","+0.25em")
+       .attr("font-size", "16px").attr("text-anchor", "middle")
+       .attr("fill", "white").text("X");
     svg.append("rect")
         .attr("x", pLeft)
         .attr("y", pTop)
         .attr("width","20")
         .attr("height","20")
         .attr("onclick", "plotSelected('" + scaling + "')")
-        .attr("fill","black");
+//        .attr("stroke-opacity","0.5");
+        .attr("fill",frameColour);
 
     svg.append("text")
        .attr("transform", "translate(0,0)")
        .attr("onclick", "plotSelected('" + scaling + "','" + cName +  "')")
-       .attr("x", cWidth).attr("dx", "-0.5em")
-       .attr("y", cHeight).attr("dy","-0.8em")
-       .attr("font-size", "12px")
-       .attr("text-anchor", "end")
+       .attr("x", pMidX) // .attr("dx", "-0.5em")
+       .attr("y", pMidY).attr("dy","+0.25em")
+       .attr("font-size", "16px")
+       .attr("text-anchor", "middle")
        .attr("fill", "white")
        .text(face);
 
@@ -1049,15 +1414,22 @@ function plotSelected(scaling, oldCanvas){
                 .range([gu.yBot, gu.yTop]);
         var x_axis;
         var x_axisT;
-        if( c == 0 ){
-            x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
+        if(nPlots == 1){
+            x_axis = d3.axisBottom().scale(xscale).tickSize(-5.0);
             x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0);
-        } else if (c == nPm1){
-            x_axis = d3.axisBottom().scale(xscale);
-            x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
         } else {
-            x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
-            x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
+            if( c == 0 ){
+                x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
+                x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0);
+            } else {
+                if (c == nPm1){
+                    x_axis = d3.axisBottom().scale(xscale).tickSize(-5.0);
+                    x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
+                } else {
+                    x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
+                    x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
+                }
+            }
         }
 
         var y_axis = d3.axisLeft()
@@ -1096,7 +1468,7 @@ function plotSelected(scaling, oldCanvas){
             site = parts[z];
             color = siteColour[site];
             dName = site + "_" + cont;
-            console.info("Plotting: " + dName + " colour: " + color);
+//            console.info("Plotting: " + dName + " colour: " + color);
             yData = data[dName];
             timex = siteTime[site];
             nPoints = timex.length;
@@ -1111,83 +1483,9 @@ function plotSelected(scaling, oldCanvas){
             }
         }
     }
+ fullBoxX += 10;
+ fullBoxY += 10;
  return;
-// var laScale;
-// nPoints = timex.length;
-// units = siteUnits[leName];
-// ucds = siteUCD[leName];
-// for (var i = 0; i < nPlots ; i++){
-//    cont = content[i];
-//    dName = leName + "_" + cont;
-//    unit = units[i];
-//    laScale = cScales[ucds[i]];
-//    gu = geo[i];
-//    console.info("Plot " +dName + " " + unit + " " + i + " " +  gu.yTop +  " " +  gu.yBot);
-//    yData = data[dName];
-//    miny = d3.min(yData);
-//    maxy = d3.max(yData);
-//    ypadding = (maxy - miny)/20.;
-//    console.info("Y limits: " + miny + " " + maxy + " " + ypadding);
-//    var yscale = d3.scaleLinear()
-//                   .domain([miny-ypadding, maxy+ypadding])
-//                   .range([gu.yBot, gu.yTop]);
-//    var x_axis;
-//    var x_axisT;
-//    if( i == 0 ){
-//        x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
-//        x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0);
-//    } else if (i == nPm1){
-//        x_axis = d3.axisBottom().scale(xscale);
-//        x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
-//    } else {
-//        x_axis = d3.axisBottom().scale(xscale).tickSize(-5,0).tickFormat("");
-//        x_axisT = d3.axisTop().scale(xscale).tickSize(-5,0).tickFormat("");
-//    }
-//
-//    var y_axis = d3.axisLeft()
-//        .scale(yscale)
-//        .ticks(5)
-//        .tickSize(-5,0);
-//    var y_axisR = d3.axisRight()
-//        .ticks(5).scale(yscale).tickSize(-5,0);
-//        //.tickFormat("");
-////    var effWidth = width - margin;
-//
-//    svg.append("g")
-//       .attr("transform", "translate(" + gu.xLeft + ", "+ 0.0 + ")")
-//       .call(y_axis);
-//
-//    svg.append("g")
-//       .attr("transform", "translate(" + gu.xRight + ", "+ 0.0 + ")")
-//       .call(y_axisR);
-//
-//    var xmargin = 0.;
-//    svg.append("g")
-//            .attr("transform", "translate("+ xmargin +", " + gu.yBot  +")")
-//            .call(x_axis)
-//
-//    svg.append("g")
-//       .attr("transform", "translate("+xmargin+", " + gu.yTop + ")")
-//       .call(x_axisT);
-//
-//    svg.append("text")
-//       .attr("transform", "translate("+geo[0].xLeft/3+","+ geo[i].midY +")rotate(-90)")
-//       .attr("font-size", "12px")
-//       .attr("text-anchor", "middle")
-//       .text(cont + " [" + unit + "]");
-//
-//
-//    for(var j=0; j < nPoints; j++){
-//        svg.append("g").append("circle")
-//         .attr("cx", xscale(timex[j]) )
-//         .attr("cy", yscale(yData[j]) )
-//         .attr("r", 2)
-//         .attr("fill", laScale(yData[j]));
-////         .attr("fill", "red");
-//  }
-// }
-// fullBoxX += 10;
-// fullBoxY += 10;
 }
 
 function clearSelected(){
@@ -1247,12 +1545,13 @@ function makePlot1(name, scaling, cid){
 
     cwidth = defWidth * (scaling);
     cheight = defHeight * (scaling);
+    frameColour = "black";
  canvas = document.getElementById(cName);
  canvas.style.left = xLoc + "px";
  canvas.style.top  = yLoc + "px";
  canvas.style.position = "absolute";
  canvas.style.visibility = "visible";
- canvas.style.border= "2px solid black";
+    canvas.style.border= "2px solid " + frameColour;
  canvas.style.height = cheight + "px";
  canvas.style.width = cwidth + "px";
  canvas.style.zIndex = zindex;
@@ -1307,12 +1606,13 @@ function makePlots(name, scaling, alt){
 
  cWidth = 400 * scaling;
  cHeight = nPlots * 100 * scaling;
+ frameColour = "blue";
  canvas = document.getElementById(cName);
  canvas.style.left = xLoc + "px";
  canvas.style.top  = yLoc + "px";
  canvas.style.position = "absolute";
  canvas.style.visibility = "visible";
- canvas.style.border= "2px solid blue";
+    canvas.style.border= "2px solid " + frameColour;
  canvas.style.height = cHeight + "px";
  canvas.style.width = cWidth + "px";
  canvas.style.zIndex = zindex;
@@ -1370,10 +1670,10 @@ function makePlots(name, scaling, alt){
        .text(midDate);
 
     if(scaling == 1){
-        face = "x2";
+        face = "+";
         scaling = 2;
     } else {
-        face = "x1";
+        face = "-";
         scaling = 1;
     }
     var any = {};
@@ -1382,21 +1682,33 @@ function makePlots(name, scaling, alt){
     console.info("Creating any (not amy): "+ any + " " + any.name);
     pTop = height - 24;
     pLeft = width - 24;
+    pMidX = width -12;
+    pMidY = height -12;
+    svg.append("rect").attr("x", pLeft).attr("y", 0)
+        .attr("width","20").attr("height","20")
+        .attr("onclick", "hideMe('" + cName +  "')")
+        .attr("fill",frameColour);
+    svg.append("text")
+       .attr("transform", "translate(0,0)")
+       .attr("onclick", "hideMe('" + cName +  "')")
+       .attr("x", pMidX).attr("y", "12").attr("dy","+0.25em")
+       .attr("font-size", "16px").attr("text-anchor", "middle")
+       .attr("fill", "white").text("X");
     svg.append("rect")
         .attr("x", pLeft)
         .attr("y", pTop)
         .attr("width","20")
         .attr("height","20")
         .attr("onclick", "makePlots('" + any + "','" + scaling + "','" + leName + "')")
-        .attr("fill","black");
+        .attr("fill",frameColour);
 
     svg.append("text")
        .attr("transform", "translate(0,0)")
        .attr("onclick", "makePlots('" + any + "','" + scaling + "','" + leName + "')")
-       .attr("x", width).attr("dx", "-0.5em")
-       .attr("y", height).attr("dy","-0.8em")
-       .attr("font-size", "12px")
-       .attr("text-anchor", "end")
+       .attr("x", pMidX) // .attr("dx", "-0.5em")
+       .attr("y", pMidY).attr("dy","+0.25em")
+       .attr("font-size", "16px")
+       .attr("text-anchor", "middle")
        .attr("fill", "white")
        .text(face);
 
@@ -1600,10 +1912,10 @@ function generateScatter(canvasID, sensorID, qID, qUnit, qUcd, yData, timex, sca
        .text(qID + " v Time. " + sensorID)
 
     if(scaling == 1){
-        face = "x2";
+        face = "+";
         scaling = 2;
     } else {
-        face = "x1";
+        face = "-";
         scaling = 1;
     }
     var any = {};
@@ -1612,21 +1924,33 @@ function generateScatter(canvasID, sensorID, qID, qUnit, qUcd, yData, timex, sca
     console.info("Creating any (not amy): "+ any + " " + any.name);
     pTop = height - 24;
     pLeft = width - 24;
+    pMidX = width -12;
+    pMidY = height -12;
+    svg.append("rect").attr("x", pLeft).attr("y", 0)
+        .attr("width","20").attr("height","20")
+        .attr("onclick", "hideMe('" + cName +  "')")
+        .attr("fill",frameColour);
+    svg.append("text")
+       .attr("transform", "translate(0,0)")
+       .attr("onclick", "hideMe('" + cName +  "')")
+       .attr("x", pMidX).attr("y", "12").attr("dy","+0.25em")
+       .attr("font-size", "16px").attr("text-anchor", "middle")
+       .attr("fill", "white").text("X");
     svg.append("rect")
         .attr("x", pLeft)
         .attr("y", pTop)
         .attr("width","20")
         .attr("height","20")
         .attr("onclick", "makePlot1('" + any + "','" + scaling + "','" + canvasID + "')")
-        .attr("fill","black");
+        .attr("fill",frameColour);
 
     svg.append("text")
        .attr("transform", "translate(0,0)")
        .attr("onclick", "makePlot1('" + any + "','" + scaling + "','" + canvasID + "')")
-       .attr("x", width).attr("dx", "-0.5em")
-       .attr("y", height).attr("dy","-0.8em")
-       .attr("font-size", "12px")
-       .attr("text-anchor", "end")
+       .attr("x", pMidX) // .attr("dx", "-0.5em")
+       .attr("y", pMidY).attr("dy","+0.25em")
+       .attr("font-size", "16px")
+       .attr("text-anchor", "middle")
        .attr("fill", "white")
        .text(face);
 
