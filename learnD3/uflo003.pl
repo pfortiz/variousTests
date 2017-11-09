@@ -8,7 +8,6 @@
 #   -   To introduce markerClustering and other features in the wish list
 
 
-use strict;
 use List::Util qw( min max );
 use Time::Local;
 use Date::Parse;
@@ -17,6 +16,10 @@ use CGI;
 use POSIX;
 use List::MoreUtils qw( minmax );
 
+my $deBug = 1;
+if($deBug == 0){
+use strict;
+}
 my $baseDir = "/Users/Shared/ufloTables";
 
 # Get the basic site data from a table for the time being.
@@ -42,6 +45,7 @@ my @dhp = split(/,/);
 my $ncols = $#dhp + 1;
 my $divH = 300;
 my $divW = 450;
+my $q = CGI->new();
 
 while(<D>){
     chop;
@@ -121,8 +125,8 @@ close(F);
 #print STDERR "Geolocation: $jsGeolocation\n";
 
 my $siteIDlist = join(",", @siteID);
-my $siteLonlist = join(",", @siteLon);
-my $siteLatlist = join(",", @siteLat);
+my $siteLonlist = join(", ", @siteLon);
+my $siteLatlist = join(", ", @siteLat);
 my $nSites = $#siteLon + 1;
 $slon = 0.0;
 $slat = 0.0;
@@ -155,11 +159,32 @@ if ($scaleLat > $scaleLon){
     $mapScaling = $scaleLon;
 }
 
+my $lZoom = $q->param('actualZoom');
+my $midLat = $q->param('midLat');
+my $midLon = $q->param('midLon');
+my $alive = $q->param('alive');
+if($alive == ""){
+    $alive = 0;
+}
+print STDERR "$midLat, $midLon, A-zoom: $lZoom\n";
 my $mapZoom;
-if ($latDR > $lonDR){
-    $mapZoom = floor($latDR/$mapScaling);
+if($lZoom eq ""){
+    if ($latDR > $lonDR){
+        $mapZoom = floor($latDR/$mapScaling);
+    } else {
+        $mapZoom = floor($lonDR/$mapScaling);
+    }
 } else {
-    $mapZoom = floor($lonDR/$mapScaling);
+    $mapZoom = $lZoom;
+    print STDERR "Fixing zoom: $lZoom, $mapZoom\n";
+}
+
+# we get the values passed from the form
+if($midLat ne "" and $midLon ne ""){
+    $slon = $midLon + 0.0;
+    $slat = $midLat + 0.0;
+    print STDERR "Fixing 1 lat/lon: $midLat, $midLon\n";
+    print STDERR "Fixing 2 lon/lat: $slon, $slat\n";
 }
 
 #my $scaleLat = 0.01;
@@ -191,10 +216,11 @@ my $lTime = sprintf("%02d:%02d:%02d", $thour, $tmin, $tsec);
 # We know the current day, hence we can get the time and angle of
 # sunrise/sunset
 
-my $q = CGI->new();
 
 my @allPar = $q->param;
 print STDERR "All pars: @allPar\n";
+my $info = $q->param('plots2do');
+print STDERR "INFO: $info\n";
 my $toYear = $q->param('toYear');
 my $fromYear = $q->param('fromYear');
 my ($lfhour, $uthour);
@@ -338,7 +364,9 @@ Content-type: text/html
 
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+<!--
 <script src="../ufloScripts/uflo-004.js"></script>
+-->
 <script src="../ufloScripts/markerclusterer.js"> </script>
 
 
@@ -346,17 +374,44 @@ Content-type: text/html
 
 <!-- pfo has introduced the JS functions at this level -->
 
+HEADER
+
+my $tmpFile;
+if($deBug == 1){
+    my $pid = $$;
+    $tmpFile = "/tmp/ufloTmp$pid.js";
+    open(JS1, ">$tmpFile");
+} else {
+    *JS1 = STDOUT;
+} 
+
+print "<script type=\"text/javascript\"> \n";
+my $jsFile = "/Users/pfo/Sites/ufloScripts/uflo-004.js";
+if(!-e $jsFile){
+    print STDERR "$jsFile does not exist\n";
+} else {
+    open(J, "<$jsFile");
+    while(<J>){
+        print ;
+    }
+    close(J);
+}
+print "</script>\n";
+print JS1 <<"HEADER";
+
 <script>
 <!-- pfo has introduced the necessary data at this level -->
 var bsize = {
   width: window.innerWidth || document.body.clientWidth,
   height: window.innerHeight || document.body.clientHeight
-}
+};
 
 console.info("Hallo, browser size: " +  bsize.width + " x " + bsize.height);
 var siteID = [$siteIDlist];
 var siteLat = [$siteLatlist];
 var siteLon = [$siteLonlist];
+var live = $alive;
+var toDo = "$info";
 var zindex = 1000;
 var mindex = 0;
 var fullBoxX = 50;
@@ -426,7 +481,7 @@ foreach $_ (@pureSiteID){
 #        $canvases .= "<div id=\"$cid\" draggable=\"true\" ></div>\n";
         $j++;
     }
-    print <<"SENSORE";
+    print JS1 <<"SENSORE";
 siteContent["$_"] = [$senid];
 siteUnits["$_"] = [$qUnit];
 siteUCD["$_"] = [$qUCD];
@@ -440,8 +495,8 @@ $i = 0;
 $j = 0;
 my ($plotButtons, $button);
 foreach $_ (sort keys %allContents){
-    print "offsetX[\"$_\"] = $i;\n";
-    print "offsetY[\"$_\"] = $j;\n";
+    print JS1 "offsetX[\"$_\"] = $i;\n";
+    print JS1 "offsetY[\"$_\"] = $j;\n";
     $button = "<input name=\"plot$_\" type=\"submit\" value=\"Plot $_\" onclick=\"multiPlot('$_',1,'mp')\">";
     $plotButtons .= "$button\n<br>\n";
     $i+= 5;
@@ -449,16 +504,27 @@ foreach $_ (sort keys %allContents){
 }
 
 foreach $_ (sort keys %data){
-    print "data[\"$_\"] = [$data{$_}];\n";
+    print JS1 "data[\"$_\"] = [$data{$_}];\n";
 }
 
-print <<"HEADER";
+print JS1 <<"HEADER";
 
+/*
+ *  Objective: create more meaningful objects where data is stored based on
+ *  the input information.
+ */
 var mdata = {};
 var varsByCont = {};
 var hamlet = {};
+var siteInfo = {};
+var activeCanvas = {};
+
 for( var s = 0; s < siteID.length; s++){
     site = siteID[s];
+    gl = {};
+    gl["lat"] = siteLat[s];
+    gl["lon"] = siteLon[s];
+    siteInfo[site] = gl;
     cont = siteContent[site];
     for (var c = 0; c < cont.length; c++){
         qtty = cont[c];
@@ -475,8 +541,6 @@ for( var s = 0; s < siteID.length; s++){
 //        uzi = siteUCD[site][c];
 //        console.info("Defining: " + tag + " " + unit + " " + uzi);
         var meta = {};
-//        meta.unit = unit;
-//        meta.ucd = uzi;
         meta.ucd = siteUCD[site][c];
         meta.unit = siteUnits[site][c];
         mdata[tag] = meta;
@@ -503,107 +567,191 @@ function initMap() {
     setMarkersCallBack(map, theMarkers);
 
     var markerCluster = new MarkerClusterer(map, theMarkers,
+//            {imagePath: '../ufloFigs'});
             {imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
 }
-
-var TILE_SIZE = 256;
-
-var shape = {
-  coords: [1, 1, 1, 32, 25, 32, 25, 1],
-  type: 'poly'
-};
-
-function project(latLng) {
-    var siny = Math.sin(latLng.lat() * Math.PI / 180);
-
-    // Truncating to 0.9999 effectively limits latitude to 89.189. This is
-    // about a third of a tile past the edge of the world tile.
-    siny = Math.min(Math.max(siny, -0.9999), 0.9999);
-
-    return new google.maps.Point(
-        TILE_SIZE * (0.5 + latLng.lng() / 360),
-        TILE_SIZE * (0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI)));
-}
-
-function alerta(evento, siteID){
-//    window.alert('Something was moved over ' + siteID);
-//    var chicago = new google.maps.LatLng(41.850, -87.650);
-    var slat = siteGeoLoc[siteID+"_lat"];
-    var slon = siteGeoLoc[siteID+"_lon"];
-    var leSite = new google.maps.LatLng(slat, slon );
-    var coordInfoWindow = new google.maps.InfoWindow();
-//    coordInfoWindow.setContent(createInfoWindowContent(chicago, map.getZoom()));
-    coordInfoWindow.setContent(createInfoWindowContent(evento, siteID, slat, slon));
-//    coordInfoWindow.setContent("Data for "+siteID);
-    coordInfoWindow.setPosition(leSite);
-    coordInfoWindow.open(map);
-}
-
-function createInfoWindowContent(eventu, siteID, slat, slon){
-//    var worldCoordinate = project(latLng);
-//    var scale = 1 << map.getZoom();
-
-//    var pixelCoordinate = new google.maps.Point(
-//            Math.floor(worldCoordinate.x * scale),
-//            Math.floor(worldCoordinate.y * scale));
-    var as = "a";
-    var content = "";
-//    col25 = tempScale(25);
-//    console.info("Colour for 25C: " + col25 + " siteID: " + siteID);
-    content = "Data for " + siteID + " ";
-    content += "<input type='button' class='blueButton' onClick='makePlots(this, 1, 0)' name='" +siteID+ "' value='Plot all'><br>";
-    content += "<small><table>";
-    content += "<tr><td>Latitude: </td><td>" + slat + "</td><td></td></tr>";
-    content += "<tr><td>Longitude: </td><td>" + slon + "</td><td></td></tr>";
-    var dataContent = siteContent[siteID];
-    console.info("dataContent: " + dataContent);
-    console.info("pixels x: "+ eventu.clientX + " y: " + eventu.clientY );
-    prime = "_" + eventu.clientX + "_" + eventu.clientY;
-    for(i = 0; i < dataContent.length; i++){
-        q = dataContent[i];
-        k = siteID + "_" + q;
-        u = siteUnits[siteID][i];
-//        uzi = siteUCD[siteID][i];
-        uzi = mdata[k].ucd;
-//        uzi = "METxTEMP";
-        mj = siteID + " " + q + " " + u + " " + uzi;
-        console.info(mj);
-        kPrime = k + "_" + prime;
-//        kPrime = k + "_" + u + "_" + uzi + prime;
-//        kPrime = k + "_" + u + "_" + "METxTEMP" + prime;
-        len = data[k].length -1;
-        qq = " ";
-
-        content += "<tr><td><input type='checkbox' onClick='makePlot1(this, 1,qq)' name='" +kPrime+ "' value=' '><span>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td>";
-        content += "<td><span onClick='markMe(this, event)' id='" +k + "'>&nbsp;&nbsp;&nbsp;Add</span></td></tr>";
-//        content += "<td><span onClick='markMe(this, event)' id='" +k + "'>&nbsp;+&nbsp;</span></tr>";
-//        content += "<td><input type='button' onClick='markMe(this, event)' name='b" +k + "' value='+'></td></tr>";
-    }
-//onMouseOver="changeLabel('the Update')">
-    content += "</table></small>";
-    return content;
-}
-
-
-function setMarkersJS(map) {
-  // Adds markers to the map.
-  // Marker sizes are expressed as a Size of X,Y where the origin of the image
-  // (0,0) is located in the top left of the image.
-  // Origins, anchor positions and coordinates of the marker increase in the X
-  // direction to the right and in the Y direction down.
-  // Shapes define the clickable region of the icon. The type defines an HTML
-  // <area> element 'poly' which traces out a polygon as a series of X,Y points.
-  // The final coordinate closes the poly by connecting to the first coordinate.
-
-  var image = {
-    url: '../ufloFigs/metAQ25x32.png',
-    size: new google.maps.Size(25, 32),
-    origin: new google.maps.Point(0, 0),
-    anchor: new google.maps.Point(0, 32)
-  };
-
 HEADER
 
+#var TILE_SIZE = 256;
+#
+#var shape = {
+#  coords: [1, 1, 1, 32, 25, 32, 25, 1],
+#  type: 'poly'
+#};
+#
+#function project(latLng) {
+#    var siny = Math.sin(latLng.lat() * Math.PI / 180);
+#
+#    // Truncating to 0.9999 effectively limits latitude to 89.189. This is
+#    // about a third of a tile past the edge of the world tile.
+#    siny = Math.min(Math.max(siny, -0.9999), 0.9999);
+#
+#    return new google.maps.Point(
+#        TILE_SIZE * (0.5 + latLng.lng() / 360),
+#        TILE_SIZE * (0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI)));
+#}
+#
+#function alerta(evento, siteID){
+#//    window.alert('Something was moved over ' + siteID);
+#//    var chicago = new google.maps.LatLng(41.850, -87.650);
+#    var slat = siteGeoLoc[siteID+"_lat"];
+#    var slon = siteGeoLoc[siteID+"_lon"];
+#    var leSite = new google.maps.LatLng(slat, slon );
+#    var coordInfoWindow = new google.maps.InfoWindow();
+#//    coordInfoWindow.setContent(createInfoWindowContent(chicago, map.getZoom()));
+#    coordInfoWindow.setContent(createInfoWindowContent(evento, siteID, slat, slon));
+#//    coordInfoWindow.setContent("Data for "+siteID);
+#    coordInfoWindow.setPosition(leSite);
+#    coordInfoWindow.open(map);
+#}
+#
+#function createInfoWindowContent(eventu, siteID, slat, slon){
+#//    var worldCoordinate = project(latLng);
+#//    var scale = 1 << map.getZoom();
+#
+#//    var pixelCoordinate = new google.maps.Point(
+#//            Math.floor(worldCoordinate.x * scale),
+#//            Math.floor(worldCoordinate.y * scale));
+#    var as = "a";
+#    var content = "";
+#//    col25 = tempScale(25);
+#//    console.info("Colour for 25C: " + col25 + " siteID: " + siteID);
+#    content = "Data for " + siteID + " ";
+#    content += "<input type='button' class='blueButton' onClick='makePlots(this, 1, 0)' name='" +siteID+ "' value='Plot all'><br>";
+#    content += "<small><table>";
+#    content += "<tr><td>Latitude: </td><td>" + slat + "</td><td></td></tr>";
+#    content += "<tr><td>Longitude: </td><td>" + slon + "</td><td></td></tr>";
+#    var dataContent = siteContent[siteID];
+#    console.info("dataContent: " + dataContent);
+#    console.info("pixels x: "+ eventu.clientX + " y: " + eventu.clientY );
+#    prime = "_" + eventu.clientX + "_" + eventu.clientY;
+#    for(i = 0; i < dataContent.length; i++){
+#        q = dataContent[i];
+#        k = siteID + "_" + q;
+#        u = siteUnits[siteID][i];
+#        uzi = mdata[k].ucd;
+#        kPrime = k + "_" + prime;
+#        len = data[k].length -1;
+#        qq = " ";
+#
+#        content += "<tr><td><input type='checkbox' onClick='makePlot1(this, 1,qq)' name='" +kPrime+ "' value=' '><span>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td>";
+#        content += "<td><span onClick='markMe(this, event)' id='" +k + "'>&nbsp;&nbsp;&nbsp;Add</span></td></tr>";
+#    }
+#//onMouseOver="changeLabel('the Update')">
+#    content += "</table></small>";
+#    return content;
+#}
+
+
+#//        uzi = siteUCD[siteID][i];
+#//        uzi = "METxTEMP";
+#//        mj = siteID + " " + q + " " + u + " " + uzi;
+#//        console.info(mj);
+#//        kPrime = k + "_" + u + "_" + uzi + prime;
+#//        kPrime = k + "_" + u + "_" + "METxTEMP" + prime;
+
+#//        content += "<td><span onClick='markMe(this, event)' id='" +k + "'>&nbsp;+&nbsp;</span></tr>";
+#//        content += "<td><input type='button' onClick='markMe(this, event)' name='b" +k + "' value='+'></td></tr>";
+
+#function setMarkersJS(map) {
+#  // Adds markers to the map.
+#  // Marker sizes are expressed as a Size of X,Y where the origin of the image
+#  // (0,0) is located in the top left of the image.
+#  // Origins, anchor positions and coordinates of the marker increase in the X
+#  // direction to the right and in the Y direction down.
+#  // Shapes define the clickable region of the icon. The type defines an HTML
+#  // <area> element 'poly' which traces out a polygon as a series of X,Y points.
+#  // The final coordinate closes the poly by connecting to the first coordinate.
+#
+#  var image = {
+#    url: '../ufloFigs/metAQ25x32.png',
+#    size: new google.maps.Size(25, 32),
+#    origin: new google.maps.Point(0, 0),
+#    anchor: new google.maps.Point(0, 32)
+#  };
+#
+#HEADER
+#
+##
+##for($i = 0; $i < $nSites; $i++){
+##    $sid =  $siteID[$i];
+##    print <<"MARKER";
+##    var marker$i = new google.maps.Marker({
+##      position: {lat: $siteLat[$i], lng: $siteLon[$i]},
+##      map: map,
+##      icon: image,
+##      label: $siteID[$i],
+##    });
+##//    marker$i.addListener('mouseover', function(){alerta($sid)} );
+##    marker$i.addListener('click', function(){alerta(event, $sid)} );
+##    theMarkers.push(marker$i);
+##MARKER
+##}
+#
+##// This could be generated by perl instead...
+##<body>
+#
+#print <<"HEADER";
+#  for (var i = 0; i < nSites; i++) {
+#    sid = siteID[i];
+#//    var marker = new google.maps.Marker({
+#    var marker = new google.maps.Marker({
+#      position: {lat: siteLat[i], lng: siteLon[i]},
+#      map: map,
+#      icon: image,
+#      shape: shape,
+#      label: sid,
+#    });
+#//    var fname = "alerta"+i;
+#//    var msg = sid;
+#//    marker.addListener('mouseover', function(){alerta([msg])} );
+#    marker.addListener('click', function(){alerta(event, sid)} );
+#    theMarkers.push(marker);
+#  }
+#}
+#
+#HEADER
+
+#    url: '../ufloFigs/metAQ25x32.png',
+
+#print <<"HEADERSM";
+#function setMarkers(map) {
+#  // Adds markers to the map.
+#  // Marker sizes are expressed as a Size of X,Y where the origin of the image
+#  // (0,0) is located in the top left of the image.
+#  // Origins, anchor positions and coordinates of the marker increase in the X
+#  // direction to the right and in the Y direction down.
+#  // Shapes define the clickable region of the icon. The type defines an HTML
+#  // <area> element 'poly' which traces out a polygon as a series of X,Y points.
+#  // The final coordinate closes the poly by connecting to the first coordinate.
+#
+#  var image = {
+#    url: '../ufloFigs/ufloLogo003.jpg',
+#    size: new google.maps.Size(25, 35),
+#    origin: new google.maps.Point(0, 0),
+#    anchor: new google.maps.Point(0, 32)
+#  };
+#
+#HEADERSM
+#
+##        mmsg = [siteID,q];
+##        thing = {sensor:siteID, measurement:q};
+##//        functionName = "plot" + i;
+##//        console.info("Hallo "+ functionName + " " + k);
+##// None of the lines below work
+##//        content += "<tr><td><span id=\''+functionName+'\' onMouseOver='(function(siteID, q){ return function(){ makePlot2(siteID, q); } })(siteID,q);'>" + q + "</span> </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
+##//        content += "<tr><td><span onMouseOver='(function(){makePlot(thing)})'>" + q + "</span> </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
+##//        content += "<tr><td><span onMouseOver='(function(){makePlot(\''+ thing + '\')})'>" + q + "</span> </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
+##//        content += "<tr><td><span onMouseOver='function(){makePlot(mmsg)}'>" + q + "</span> </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
+##
+##
+##// The lines below works
+##//        content += "<tr><td><span onMouseOver='\''+functionName+'\'(thing)'>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td></tr>";
+##
+##//        content += "<tr><td><span onMouseOver='makePlot(thing)'>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td></tr>";
+##//        content += "<tr><td><span>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td></tr>";
+##//        content += "<tr><td onMouseOver='makePlot(mmsg)'>" + q + " </td><td>" + data[k][len] + " [" + u + "]</td></tr>";
+##//        content += "<tr><td onMouseOver='makePlot( \'' + mmsg + '\')'>" + q + " </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
 #
 #for($i = 0; $i < $nSites; $i++){
 #    $sid =  $siteID[$i];
@@ -619,107 +767,35 @@ HEADER
 #    theMarkers.push(marker$i);
 #MARKER
 #}
+#
+##// This could be generated by perls instead...
+##  for (var i = 0; i < nSites; i++) {
+##//    var marker = new google.maps.Marker({
+##    markers[i] = new google.maps.Marker({
+##      position: {lat: siteLat[i], lng: siteLon[i]},
+##      map: map,
+##      icon: image,
+##      shape: shape,
+##      label: siteID[i],
+##//      title: siteID[i],
+##      //zIndex: acsesites[i][3]
+##    });
+##//    var fname = "alerta"+i;
+##    var msg = siteID[i];
+##    markers[i].addListener('mouseover', function(){alerta([msg])} );
+##  }
+##<body>
+#
+#print "}\n\n"; # the end of the setMarker() function.
 
-#// This could be generated by perl instead...
-#<body>
-
-print <<"HEADER";
-  for (var i = 0; i < nSites; i++) {
-    sid = siteID[i];
-//    var marker = new google.maps.Marker({
-    var marker = new google.maps.Marker({
-      position: {lat: siteLat[i], lng: siteLon[i]},
-      map: map,
-      icon: image,
-      shape: shape,
-      label: sid,
-    });
-//    var fname = "alerta"+i;
-//    var msg = sid;
-//    marker.addListener('mouseover', function(){alerta([msg])} );
-    marker.addListener('click', function(){alerta(event, sid)} );
-    theMarkers.push(marker);
-  }
+if($deBug == 1){
+    close(JS1);
+    open(JS1, "<$tmpFile");
+    while(<JS1>){
+        print;
+    }
+    close(JS1);
 }
-
-HEADER
-
-#    url: '../ufloFigs/metAQ25x32.png',
-
-print <<"HEADERSM";
-function setMarkers(map) {
-  // Adds markers to the map.
-  // Marker sizes are expressed as a Size of X,Y where the origin of the image
-  // (0,0) is located in the top left of the image.
-  // Origins, anchor positions and coordinates of the marker increase in the X
-  // direction to the right and in the Y direction down.
-  // Shapes define the clickable region of the icon. The type defines an HTML
-  // <area> element 'poly' which traces out a polygon as a series of X,Y points.
-  // The final coordinate closes the poly by connecting to the first coordinate.
-
-  var image = {
-    url: '../ufloFigs/ufloLogo003.jpg',
-    size: new google.maps.Size(25, 35),
-    origin: new google.maps.Point(0, 0),
-    anchor: new google.maps.Point(0, 32)
-  };
-
-HEADERSM
-
-#        mmsg = [siteID,q];
-#        thing = {sensor:siteID, measurement:q};
-#//        functionName = "plot" + i;
-#//        console.info("Hallo "+ functionName + " " + k);
-#// None of the lines below work
-#//        content += "<tr><td><span id=\''+functionName+'\' onMouseOver='(function(siteID, q){ return function(){ makePlot2(siteID, q); } })(siteID,q);'>" + q + "</span> </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
-#//        content += "<tr><td><span onMouseOver='(function(){makePlot(thing)})'>" + q + "</span> </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
-#//        content += "<tr><td><span onMouseOver='(function(){makePlot(\''+ thing + '\')})'>" + q + "</span> </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
-#//        content += "<tr><td><span onMouseOver='function(){makePlot(mmsg)}'>" + q + "</span> </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
-#
-#
-#// The lines below works
-#//        content += "<tr><td><span onMouseOver='\''+functionName+'\'(thing)'>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td></tr>";
-#
-#//        content += "<tr><td><span onMouseOver='makePlot(thing)'>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td></tr>";
-#//        content += "<tr><td><span>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td></tr>";
-#//        content += "<tr><td onMouseOver='makePlot(mmsg)'>" + q + " </td><td>" + data[k][len] + " [" + u + "]</td></tr>";
-#//        content += "<tr><td onMouseOver='makePlot( \'' + mmsg + '\')'>" + q + " </td><td>" + data[siteID+"_"+q][len] + " [" + u + "]</td></tr>";
-
-for($i = 0; $i < $nSites; $i++){
-    $sid =  $siteID[$i];
-    print <<"MARKER";
-    var marker$i = new google.maps.Marker({
-      position: {lat: $siteLat[$i], lng: $siteLon[$i]},
-      map: map,
-      icon: image,
-      label: $siteID[$i],
-    });
-//    marker$i.addListener('mouseover', function(){alerta($sid)} );
-    marker$i.addListener('click', function(){alerta(event, $sid)} );
-    theMarkers.push(marker$i);
-MARKER
-}
-
-#// This could be generated by perls instead...
-#  for (var i = 0; i < nSites; i++) {
-#//    var marker = new google.maps.Marker({
-#    markers[i] = new google.maps.Marker({
-#      position: {lat: siteLat[i], lng: siteLon[i]},
-#      map: map,
-#      icon: image,
-#      shape: shape,
-#      label: siteID[i],
-#//      title: siteID[i],
-#      //zIndex: acsesites[i][3]
-#    });
-#//    var fname = "alerta"+i;
-#    var msg = siteID[i];
-#    markers[i].addListener('mouseover', function(){alerta([msg])} );
-#  }
-#<body>
-
-print "}\n\n"; # the end of the setMarker() function.
-
 
 print <<"HEADER2";
 
@@ -765,7 +841,12 @@ $canvases
 
 
 <div id="resubmit">
-<form action="uflo003.pl" method="post">
+<form id="redo" name="redo" action="uflo003.pl" method="post">
+<input type="hidden" name="actualZoom" id="actualZoom" value="$mapZoom">
+<input type="hidden" name="plots2do" id="plots2do" value="nothing">
+<input type="hidden" name="midLat" id="midLat" value="$slat">
+<input type="hidden" name="midLon" id="midLon" value="$slon">
+<input type="hidden" name="alive" id="alive" value="$alive">
 <small>
 Change the period of observations: 
 &nbsp; &nbsp;
@@ -841,17 +922,20 @@ $plotButtons
 </div>
 <br><br><br>
 <div id="wishes" style="backgroundcolor: #ffffee; visibility: hidden; float: right">
-<input name="plotWish" type="button" value="Plot selected"
+<input name="plotWish" type="button" value="Plot Selected"
 onClick="plotSelected(1)">
-<input name="clearWish" type="button" value="Clear selected"
+<input name="clearWish" type="button" value="Clear Selected"
 onClick="clearSelected()">
+</div>
+<div id="allezLive" style="bgcolor: #ffffee">
+<form action="uflo003.pl" method="post" name="onair" id="onair">
+<input type="button" value="Go Live"
+onClick="goLive()">
+</form>
 </div>
 <br>
 <br>
 <br>
-<form action="uflo003.pl" method="post" name="goLive">
-<input type="hidden" name="zoomIs" value="zoom1">
-</form>
 </td>
 </tr>
 </table>
@@ -881,11 +965,12 @@ quantity only.</li>
 sites and detectors.</li>
 <li>Close any of the new areas by clicking on the <b>X</b> located at the
 right top corner.</li>
+</ol>
 <li>Any of the generated charts can be moved by moving the mouse while
 pressing the left button.</li>
+<li>A single click on a chart will raise it on top of other charts.</li>
 <li>Any of the charts can be expanded by a factor of 2 using the <b>+</b>
 symbol located at the bottom-right corner of the chart, or brought back to normal size using the <b>-</b> button.</li>
-</ol>
 <li>If you have clicked on any of the <b>Add</b> buttons, the buttons:
 <b>Plot Selected</b> and <b>Clear Selected</b> appear under the other
 buttons.</li>
@@ -902,10 +987,18 @@ of observation using the buttons right below the map.</li>
 
 </div>
 
-</body>
-</html>
+<script defer>
+    if(live > 0){
+        a = drawAllPlots();
+    } else {
+        console.info("I'm not in live mode, no plots drawn");
+    }
+</script>
 HEADER2
 #<img src="../ufloFigs/ufloLogo1_002.jpg" width="25" height="35" border="2">
+
+
+print "</body>\n</html>\n";
 exit;
 
 # <script>
