@@ -221,6 +221,9 @@ my @allPar = $q->param;
 print STDERR "All pars: @allPar\n";
 my $info = $q->param('plots2do');
 print STDERR "INFO: $info\n";
+if ($info eq ""){
+    $info = "nothing";
+}
 my $toYear = $q->param('toYear');
 my $fromYear = $q->param('fromYear');
 my ($lfhour, $uthour);
@@ -406,21 +409,38 @@ var bsize = {
   height: window.innerHeight || document.body.clientHeight
 };
 
+//var computedFontSize = window.getComputedStyle(document.getElementById("body")).fontSize;
+
+/*
+var el = document.body;
+//var style = window.getComputedStyle(el, null).getPropertyValue('font-size');
+var stilo = window.getComputedStyle(document.createElement('div')).fontFamily;
+//var fontSize = parseFloat(style);
+
 console.info("Hallo, browser size: " +  bsize.width + " x " + bsize.height);
-var siteID = [$siteIDlist];
-var siteLat = [$siteLatlist];
-var siteLon = [$siteLonlist];
+console.log("Font size: ", stilo);
+//var theCSSprop = window.getComputedStyle(document.getElementById('body'),null).getPropertyValue("font-family");
+console.log(bsize.fontSize); // output: serif
+var besty = document.getElementsByTagName("body")[0].style;
+console.dir(besty);
+*/
+var g_siteID = [$siteIDlist];
+var g_siteLat = [$siteLatlist];
+var g_siteLon = [$siteLonlist];
 var live = $alive;
 var toDo = "$info";
 var zindex = 1000;
+var nada = [];
 var mindex = 0;
 var fullBoxX = 50;
 var fullBoxY = 50;
+var maxScale = 1.5;
 var siteGeoLoc = {};
 
 // variable to keep variables to plot together as a function of time
 var wishList = {};
 var theMarkers = [];
+var markersActivated = 0;
 
 var divH = $divH;
 $jsGeolocation
@@ -497,7 +517,7 @@ my ($plotButtons, $button);
 foreach $_ (sort keys %allContents){
     print JS1 "offsetX[\"$_\"] = $i;\n";
     print JS1 "offsetY[\"$_\"] = $j;\n";
-    $button = "<input name=\"plot$_\" type=\"submit\" value=\"Plot $_\" onclick=\"multiPlot('$_',1,'mp')\">";
+    $button = "<input name=\"plot$_\" type=\"submit\" value=\"Plot $_\" onclick=\"multiPlot('nature=click;scaling=1;quantity=$_',nada)\">";
     $plotButtons .= "$button\n<br>\n";
     $i+= 5;
     $j+= 10;
@@ -519,11 +539,11 @@ var hamlet = {};
 var siteInfo = {};
 var activeCanvas = {};
 
-for( var s = 0; s < siteID.length; s++){
-    site = siteID[s];
+for( var s = 0; s < g_siteID.length; s++){
+    site = g_siteID[s];
     gl = {};
-    gl["lat"] = siteLat[s];
-    gl["lon"] = siteLon[s];
+    gl["lat"] = g_siteLat[s];
+    gl["lon"] = g_siteLon[s];
     siteInfo[site] = gl;
     cont = siteContent[site];
     for (var c = 0; c < cont.length; c++){
@@ -569,6 +589,18 @@ function initMap() {
     var markerCluster = new MarkerClusterer(map, theMarkers,
 //            {imagePath: '../ufloFigs'});
             {imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
+    markersActivated = 1;
+
+// Should I add a listener?
+    google.maps.event.addListenerOnce(map, 'idle', function(){
+    // do something only the first time the map is loaded
+        if(live > 0){
+            console.info("Je suis in live mode, plots a faire");
+            a = drawAllPlots(theMarkers);
+        } else {
+            console.info("I'm not in live mode, no plots drawn");
+        }
+    });
 }
 HEADER
 
@@ -801,7 +833,7 @@ print <<"HEADER2";
 
 </script>
 
-<body ondragover="drag_over(event)" ondrop="dropit(event)">
+<body id="body" ondragover="drag_over(event)" ondrop="dropit(event)">
 <table border="1px" width="95%">
 <tr valign="top">
 <td> 
@@ -843,7 +875,7 @@ $canvases
 <div id="resubmit">
 <form id="redo" name="redo" action="uflo003.pl" method="post">
 <input type="hidden" name="actualZoom" id="actualZoom" value="$mapZoom">
-<input type="hidden" name="plots2do" id="plots2do" value="nothing">
+<input type="hidden" name="plots2do" id="plots2do" value="$info">
 <input type="hidden" name="midLat" id="midLat" value="$slat">
 <input type="hidden" name="midLon" id="midLon" value="$slon">
 <input type="hidden" name="alive" id="alive" value="$alive">
@@ -879,8 +911,7 @@ $tdOptions
 $hOptionsT
 </select>
 &nbsp; &nbsp;
-<input name="altZoom" type="submit" value="Update"
-onMouseOver="changeLabel('the Update')">
+<input name="altZoom" type="submit" value="Update">
 </small>
 </form>
 </div>
@@ -923,7 +954,7 @@ $plotButtons
 <br><br><br>
 <div id="wishes" style="backgroundcolor: #ffffee; visibility: hidden; float: right">
 <input name="plotWish" type="button" value="Plot Selected"
-onClick="plotSelected(1)">
+onClick="plotSelected('nature=click;scaling=1;oldCanvas=xxx')">
 <input name="clearWish" type="button" value="Clear Selected"
 onClick="clearSelected()">
 </div>
@@ -986,15 +1017,18 @@ of observation using the buttons right below the map.</li>
 </ul>
 
 </div>
-
-<script defer>
-    if(live > 0){
-        a = drawAllPlots();
-    } else {
-        console.info("I'm not in live mode, no plots drawn");
-    }
-</script>
 HEADER2
+
+#<script defer>
+#    if(live > 0){
+#    /* while(markersActivated == 0){ i = 0; } */
+#        console.info("I'm in live mode, plots should be drawn");
+#//        a = drawAllPlots();
+#    } else {
+#        console.info("I'm not in live mode, no plots drawn");
+#    }
+#</script>
+
 #<img src="../ufloFigs/ufloLogo1_002.jpg" width="25" height="35" border="2">
 
 

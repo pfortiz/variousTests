@@ -58,8 +58,9 @@ function createInfoWindowContent(eventu, siteID, slat, slon){
     gOffsetX = 50;
 //    col25 = tempScale(25);
 //    console.info("Colour for 25C: " + col25 + " siteID: " + siteID);
+    qq = "nature=click;scaling=1";
     content = "Data for " + siteID + " ";
-    content += "<input type='button' class='blueButton' onClick='makePlots(this, 1, 0)' name='" +siteID+ "' value='Plot all'><br>";
+    content += "<input type='button' class='blueButton' onClick='makePlots(this, qq, event)' name='" +siteID+ "' value='Plot all'><br>";
     content += "<small><table>";
     /*
     slat = siteInfo[siteID].lat;
@@ -75,10 +76,6 @@ function createInfoWindowContent(eventu, siteID, slat, slon){
     prime = "_" + eventu.clientX + "_" + eventu.clientY;
     console.info("prime: " + prime);
     */
-    var kapsule = {};
-    kapsule.src ="click";
-    kapsule.scaling="1";
-    kapsule.cName="";
     for(i = 0; i < dataContent.length; i++){
         q = dataContent[i];
         k = siteID + "_" + q;
@@ -87,11 +84,11 @@ function createInfoWindowContent(eventu, siteID, slat, slon){
 //        kPrime = k + prime;
         kPrime = k;
         len = data[k].length -1;
-        qq = "src=click;scaling=1";
+        qq = "nature=click;scaling=1";
 
 //        content += "<tr><td><input type='checkbox' onClick='(function(t,s,q,e,k){ makePlot1(t,s,q,e,k);})(this,1,qq,event,kapsule)' name='" +kPrime+ "' value=' '><span>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td>";
         content += "<tr><td><input type='checkbox' onClick='makePlot1(this,qq,event)' name='" +kPrime+ "' value=' '><span>" + q + "</span></td><td>" + data[k][len] + " [" + u + "]</td>";
-        content += "<td><span onClick='markMe(this, event)' id='" +k + "'>&nbsp;&nbsp;&nbsp;Add</span></td></tr>";
+        content += "<td><span onClick='markMe(this)' id='" +k + "'>&nbsp;&nbsp;&nbsp;Add</span></td></tr>";
     }
 //onMouseOver="changeLabel('the Update')">
     content += "</table></small>";
@@ -126,26 +123,19 @@ function goLive()
         ac = active[c];
 //        console.info("active: " + ac + " has: " + activeCanvas[ac]);
         var did = document.getElementById(ac);
-        xpos = did.style.left;
-        ypos = did.style.top;
+        xpos = did.style.left.replace("px","");
+        ypos = did.style.top.replace("px","");
         zindx = did.style.zIndex;
  //       console.info("active Position: " + xpos + ", " + ypos);
         act = activeCanvas[ac];
         pact = act.split(":");
         pName = pact[0];
-        switch(pName){
-            case "makePlot1":
-                console.info("Info for a makePlot1");
-                break;
-            default:
-                console.info("Info for another plotting routine");
-        }
-        /*
-        */
-        toPass = activeCanvas[ac] + ":" +  xpos+":"+ypos+":"+ zindx ;
-        console.info("Passing: " + toPass);
+        toPass = "nature=alive;xPos=" +  xpos + ";yPos=" + ypos+";zx="+ zindx +
+            ";"+activeCanvas[ac];
+//        toPass = "nature=alive;xPos=" activeCanvas[ac] + ":" +  xpos + ":" + ypos+":"+ zindx ;
+//        console.info("Passing: " + toPass);
         if(longValue.length > 0){
-            longValue += ";" + toPass;
+            longValue += "|" + toPass;
         } else {
             longValue = toPass;
         }
@@ -156,13 +146,13 @@ function goLive()
     zoomy.value = map.getZoom();
     cLatLon = map.getCenter();
 
-    console.info("current map central geoloc : " + cLatLon);
+//    console.info("current map central geoloc : " + cLatLon);
 //    console.dir(cLatLon);
     document.getElementById("midLat").value = cLatLon.lat();
     document.getElementById("midLon").value = cLatLon.lng();
     document.getElementById("alive").value = 1;
     console.info("Attempting to pass: " + longValue);
-//    document.redo.submit();
+    document.redo.submit();
 }
 
 function raiseMe(divId)
@@ -228,6 +218,7 @@ function setMarkersCallBack(map, theMarkers) {
   // <area> element 'poly' which traces out a polygon as a series of X,Y points.
   // The final coordinate closes the poly by connecting to the first coordinate.
 
+    var localMarkers = [];
   var image = {
     url: '../ufloFigs/ufloLogo003.jpg',
     size: new google.maps.Size(25, 35),
@@ -236,12 +227,13 @@ function setMarkersCallBack(map, theMarkers) {
   };
 
   for (var i = 0; i < nSites; i++) {
-    var alat = siteLat[i];
-    var alon = siteLon[i];
-    var asid = siteID[i];
+    var alat = g_siteLat[i];
+    var alon = g_siteLon[i];
+    var asid = g_siteID[i];
     var marker = (function(xlat, xlon, xsid, image, mrkrs){
             myCreateMarker(xlat, xlon, xsid, image, mrkrs);
         })(alat, alon, asid, image, theMarkers);
+//    localMarkers.push(theMarker[i]);
 /*
     console.info("The markers: " + theMarkers);
 //    theMarkers.push(marker);
@@ -257,6 +249,7 @@ function setMarkersCallBack(map, theMarkers) {
     marker.addListener('click', function(){alerta(event, sid)} );
 */
   }
+    return(theMarkers);
 }
 
 /*
@@ -292,20 +285,56 @@ function textSize(text) {
 }
 
 
-function multiPlot(qtty, scaling, oldCanvas){
-    can = document.getElementById(oldCanvas);
-    if ( can !== null){
-        d3.select("#" + oldCanvas).remove();
-        delete activeCanvas[oldCanvas];
+//function multiPlot(qtty, scaling, oldCanvas){
+function multiPlot(jason ){
+//    console.log("multiplot-arg: ", jason);
+    caps = toObject(jason);
+    scaling = caps.scaling;
+    qtty = caps.quantity;
+    nature = caps.nature;
+    cName = "multiPlot_" + qtty;
+//    mindex++;
+    var location = createDivIfNeeded(cName);
+    switch(nature){
+        case "click":
+            xLoc = fullBoxX;
+            yLoc = fullBoxY;
+            fullBoxX += 50;
+            fullBoxY += 50;
+            caps["zx"] = zindex;
+            zindex++;
+            break;
+        case "zoom":
+            xLoc = location.xPos;
+            yLoc = location.yPos;
+            caps["zx"] = location.zindex;
+            break;
+        case "alive":
+            xLoc = caps.xPos;
+            yLoc = caps.yPos;
+            break;
     }
+    /*
+    can = document.getElementById(cName);
+    if ( can !== null){
+        d3.select("#" + cName).remove();
+        delete activeCanvas[cName];
+    }
+    */
 //    things = Object.keys(wishList);
     nmrkrs = theMarkers.length;
+    /*
+    myMarkers = theMarkers;
+    console.info("N markers: "+ myMarkers.length);
+    console.dir(map);
+    console.info("Is it in? " + map.getBounds());
+    console.dir(map.getBounds());
+    */
     var inside = [];
     for(var km = 0 ; km < nmrkrs; km++){
         mrkr = theMarkers[km];
-//        console.info("Marker " + mrkr.label);
+//        console.info("Marker " + mrkr.label + " Pos: " + mrkr.getPosition());
         combo = mrkr.label + "_" + qtty;
-//        console.info("Is it in? " + map.getBounds().contains(mrkr.getPosition()) );
         if(map.getBounds().contains(mrkr.getPosition()) ){
             if( hamlet[combo] == 1){
                 inside.push(combo);
@@ -320,11 +349,12 @@ function multiPlot(qtty, scaling, oldCanvas){
     things = inside;
     var qToPlot = {};
     var siteColour = {};
+//    console.info("N things: "+ things.length + "  " + things);
     for(var i = 0; i < things.length; i++){
         parts = things[i].split("_");
 //        console.info("Dealing with: " + things[i] + " " + parts);
 //        qToPlot[parts[i]] += things[i] + " ";
-        if( qToPlot[parts[1]] === null){
+        if( qToPlot[parts[1]] == null){
             qToPlot[parts[1]] = parts[0];
         } else {
             text = " " + parts[0];
@@ -366,10 +396,8 @@ function multiPlot(qtty, scaling, oldCanvas){
     }
     mint = d3.min(minTime);
     maxt = d3.max(maxTime);
-    cName = "multiPlot_" + mindex;
-    mindex++;
     var location = createDivIfNeeded(cName);
-    console.info(cName + " Plots_Requested: " + content);
+//    console.info(cName + " Plots_Requested: " + content);
 
 //    console.info("Pallete: " + siteColour);
 //    console.info("Time range: " + mint + " to " + maxt);
@@ -383,8 +411,6 @@ function multiPlot(qtty, scaling, oldCanvas){
 
 
     frameColour = "brown";
-    xLoc = fullBoxX;
-    yLoc = fullBoxY;
     cWidth = 400 * scaling;
     cHeight = (80 + nPlots * 120 + nAllSites*10) * scaling;
     canvas = document.getElementById(cName);
@@ -395,10 +421,10 @@ function multiPlot(qtty, scaling, oldCanvas){
     canvas.style.border= "2px solid " + frameColour;
     canvas.style.height = cHeight + "px";
     canvas.style.width = cWidth + "px";
-    canvas.style.zIndex = zindex;
+    canvas.style.zIndex = caps["zx"];
     canvas.style.backgroundColor = "#ffeeee";
     geo1 = plotGeometry(nPlots, cWidth, cHeight, 0);
-    zindex++;
+//    zindex++;
 
 
 //    console.info("things: "+ nPlots + " " + content);
@@ -433,7 +459,7 @@ function multiPlot(qtty, scaling, oldCanvas){
     origScaling = scaling;
     if(scaling == 1){
         face = "+";
-        scaling = 2;
+        scaling = maxScale;
     } else {
         face = "-";
         scaling = 1;
@@ -453,17 +479,20 @@ function multiPlot(qtty, scaling, oldCanvas){
        .attr("font-size", "16px").attr("text-anchor", "middle")
        .attr("fill", "white").text("X");
 
+    arg = "nature=zoom;quantity="+qtty+";scaling="+scaling;
     svg.append("rect")
         .attr("x", pLeft)
         .attr("y", pTop)
         .attr("width","20")
         .attr("height","20")
-        .attr("onclick", "multiPlot('" +qtty + "','" + scaling + "','" + cName +  "')")
+        .attr("onclick", "multiPlot('" + arg +  "')")
+//        .attr("onclick", "multiPlot('" +qtty + "','" + scaling + "','" + cName +  "')")
         .attr("fill",frameColour);
 
     svg.append("text")
        .attr("transform", "translate(0,0)")
-       .attr("onclick", "multiPlot('" +qtty + "','" + scaling + "','" + cName +  "')")
+        .attr("onclick", "multiPlot('" + arg + "')")
+//       .attr("onclick", "multiPlot('" +qtty + "','" + scaling + "','" + cName +  "')")
        .attr("x", pMidX) // .attr("dx", "-0.5em")
        .attr("y", pMidY).attr("dy","+0.25em")
        .attr("font-size", "16px")
@@ -618,9 +647,7 @@ function multiPlot(qtty, scaling, oldCanvas){
             }
         }
     }
-    activeCanvas[cName] = "multiPlot:" + origScaling+":"+theContent;
-    fullBoxX += 50;
-    fullBoxY += 50;
+    activeCanvas[cName] = "code=multiPlot;quantity="+qtty+";scaling=" + origScaling+";content="+theContent;
     return;
 }
 
@@ -630,24 +657,103 @@ function markClick(obj, e){
     console.dir(obj);
 }
 
-function plotSelected(scaling, oldCanvas){
+function zoom_in(e){
+    console.info("DragStart: " + e.clientX + ", " + e.clientY);
+    console.info("DragStart: " + e.screenX + ", " + e.screenY);
+//    console.dir(obj);
+}
+
+function plotSelected(jason){
+    caps = toObject(jason);
+    scaling = caps.scaling;
+    natura = caps.nature;
+    oldCanvas = caps.oldCanvas;
+//    console.info("canvas name: " + caps.oldCanvas);
+    switch(natura){
+        case ("click"):
+//            console.info("case click: " +name.name + " " +  parts[0] + "  " + parts[1]);
+//            siteID = name.name;
+//            xPos = eve.clientX + gOffsetX;
+//            yPos = eve.clientY;
+            xLoc = fullBoxX;
+            yLoc = fullBoxY;
+            fullBoxX += 10;
+            fullBoxY += 10;
+            caps["zx"] = zindex;
+            zindex++;
+            things = Object.keys(wishList);
+            canvasName = "plotSelected_" + mindex;
+            mindex++;
+//    console.info("wishList to plot: "+ things );
+            if(things === 0){
+                return;
+            }
+            break;
+        case ("zoom"):
+//            console.info("zomm-cnvs: " + oldCanvas);
+            can = document.getElementById(oldCanvas);
+            xPos = can.style.left;
+            yPos = can.style.top;
+            d3.select("#" + oldCanvas).remove();
+//            delete activeCanvas[oldCanvas];
+            canvasName = oldCanvas;
+            xLoc = xPos.replace("px","");
+            yLoc = yPos.replace("px","");
+            zindex = can.style.zIndex;
+            things = Object.keys(wishList);
+/*
+            parts = caps["cName"].split("_");
+            parts.shift();
+            console.info("case zoom: " + caps.cName + " " +  parts[0] + "  " + p
+arts[1]);
+            msiteID = parts[0];
+            mcomp = parts[1];
+//            obi["dName"] = parts[0] + "_" + parts[1];
+*/
+            break;
+        case ("alive"):
+            siteID = caps.siteID;
+//            console.info("case alive siteID= " + siteID);
+//            cont = caps.content.split(",");
+//            parts = cont[0].split("_");
+//            msiteID = parts[0];
+//            mcomp = parts[1];
+            xLoc = caps["xPos"];
+            yLoc = caps["yPos"];
+            things = caps.content.split(",");
+            zindex = caps["zx"];
+            /*
+            ok = Object.keys(caps);
+            for(p = 0 ; p < ok.length; p++){
+                ko = ok[p];
+                console.info("Alive["+ko+ "] = " + caps[ko]);
+            }
+            */
+            canvasName = "plotSelected_" + mindex;
+            mindex++;
+            break;
+    }
+
+// var zoom = map.getZoom();
+    /*
     can = document.getElementById(oldCanvas);
     if ( can !== null){
-        d3.select("#" + oldCanvas).remove();
-        delete activeCanvas[oldCanvas];
     }
     things = Object.keys(wishList);
 //    console.info("wishList to plot: "+ things );
     if(things === 0){
         return;
     }
+    */
+
+
     var qToPlot = {};
     var siteColour = {};
     for(var i = 0; i < things.length; i++){
         parts = things[i].split("_");
 //        console.info("Dealing with: " + things[i] + " " + parts);
 //        qToPlot[parts[i]] += things[i] + " ";
-        if( qToPlot[parts[1]] === null){
+        if( qToPlot[parts[1]] == null){
             qToPlot[parts[1]] = parts[0];
         } else {
             text = " " + parts[0];
@@ -687,8 +793,7 @@ function plotSelected(scaling, oldCanvas){
     }
     mint = d3.min(minTime);
     maxt = d3.max(maxTime);
-    cName = "plotSelected_" + mindex;
-    mindex++;
+    cName = canvasName;
     var location = createDivIfNeeded(cName);
 //    console.info("Pallete: " + siteColour);
 //    console.info("Time range: " + mint + " to " + maxt);
@@ -701,8 +806,6 @@ function plotSelected(scaling, oldCanvas){
 //    console.info("Mean date: " + mdao + " " + midDate);
 
 
-    xLoc = fullBoxX;
-    yLoc = fullBoxY;
     frameColour = "green";
     cWidth = 400 * scaling;
     cHeight = (80 + nPlots * 120 + nAllSites*10) * scaling;
@@ -716,11 +819,11 @@ function plotSelected(scaling, oldCanvas){
     canvas.style.width = cWidth + "px";
     canvas.style.zIndex = zindex;
     canvas.style.backgroundColor = "#eeffee";
+
     geo1 = plotGeometry(nPlots, cWidth, cHeight, 0);
-    zindex++;
 
 
-//    console.info("things: "+ nPlots + " " + content);
+//    console.info("nPlots: "+ nPlots + " Geo0: " + geo1[0]);
 
 
     canvas.innerHTML = "";
@@ -746,7 +849,7 @@ function plotSelected(scaling, oldCanvas){
     origScaling = scaling;
     if(scaling == 1){
         face = "+";
-        scaling = 2;
+        scaling = maxScale;
     } else {
         face = "-";
         scaling = 1;
@@ -765,18 +868,19 @@ function plotSelected(scaling, oldCanvas){
        .attr("x", pMidX).attr("y", "12").attr("dy","+0.25em")
        .attr("font-size", "16px").attr("text-anchor", "middle")
        .attr("fill", "white").text("X");
+    msg = "nature=zoom;scaling=" + scaling + ";oldCanvas=" + cName;
     svg.append("rect")
         .attr("x", pLeft)
         .attr("y", pTop)
         .attr("width","20")
         .attr("height","20")
-        .attr("onclick", "plotSelected('" + scaling + "')")
+        .attr("onclick", "plotSelected('" + msg +  "')")
 //        .attr("stroke-opacity","0.5");
         .attr("fill",frameColour);
 
     svg.append("text")
        .attr("transform", "translate(0,0)")
-       .attr("onclick", "plotSelected('" + scaling + "','" + cName +  "')")
+       .attr("onclick", "plotSelected('" + msg +  "')")
        .attr("x", pMidX) // .attr("dx", "-0.5em")
        .attr("y", pMidY).attr("dy","+0.25em")
        .attr("font-size", "16px")
@@ -947,22 +1051,26 @@ function plotSelected(scaling, oldCanvas){
             }
         }
     }
-    activeCanvas[cName] = "plotSelected:" + origScaling+":"+theContent;
- fullBoxX += 10;
- fullBoxY += 10;
+    activeCanvas[cName] = "code=plotSelected;scaling=" + origScaling+";content="+theContent;
  return;
 }
 
 function clearSelected(){
+    toGo = Object.keys(wishList);
+    nTogo = toGo.length;
+    for(var i = 0 ; i < nTogo; i++){
+        wlname = toGo[i];
+        document.getElementById(toGo[i]).innerHTML = "&nbsp;&nbsp;&nbsp;Add";
+    }
     wishList = {};
     console.info("current  wishList: "+ Object.keys(wishList) );
 }
 
-function markMe(name, eventual){
+function markMe(name){
     leName = name.id;
     but = document.getElementById(leName);
     document.getElementById("wishes").style.visibility = "visible";
-    if( wishList[leName] === null){
+    if( wishList[leName] == null){
         console.info("marking LeName "+ leName  + " " + but);
         but.innerHTML = "&nbsp;&nbsp;&nbsp;Del";
         wishList[leName] = 1;
@@ -974,18 +1082,55 @@ function markMe(name, eventual){
 //    console.info("current  wishList "+ Object.keys(wishList) );
 }
 
-function drawAllPlots(){
-    console.info("About to do: " + toDo);
+
+function drawAllPlots(leMarkers){
+//    console.info("About to do: " + toDo + " nMark: " + leMarkers.length);
+    if(toDo == "nothing"){
+        return;
+    }
+    preq = toDo.split("|");
+    for(i = 0; i < preq.length; i++){
+        obt = toObject(preq[i], null, null);
+//        console.info("Trying to generate: " + preq[i]);
+//        console.info("Code = ", obt.code);
+        switch(obt.code){
+            case "makePlot1":
+//                console.info(obt.code + " operational");
+                makePlot1(null, preq[i], null);
+                break;
+            case "makePlots":
+ //               console.info(obt.code + " operational");
+                makePlots(null, preq[i], null);
+                break;
+            case "plotSelected":
+//                console.info(obt.code + " operational");
+                plotSelected(preq[i]);
+                break;
+            case "multiPlot":
+                multiPlot(preq[i] );
+                break;
+            default:
+                console.info(obt.code + " not implemented yet");
+                break;
+        }
+    }
 }
 
+/*
+ *  This function should not depend on the event or the input-id. 
+ *  This should be left to each of the plotting routines to decide what to do
+ *  with the inforation.
 function toObject(ss, nam, eva){
-    pairs = ss.split(";");
+ */
+function toObject(jason){
+    pairs = jason.split(";");
     var obi = {};
     for(var p = 0; p < pairs.length; p++){
         kv = pairs[p].split("=");
         obi[kv[0]] = kv[1];
     }
-    switch(obi.src){
+    /*
+    switch(obi.nature){
         case ("click"):
             parts = nam.name.split("_");
             console.info("case click: " +nam.name + " " +  parts[0] + "  " + parts[1]);
@@ -993,8 +1138,10 @@ function toObject(ss, nam, eva){
             obi["mcomp"] = parts[1];
             obi["cName"] = nam.name;
             obi["dName"] = nam.name;
-            obi["xLoc"] = eva.clientX + gOffsetX;
-            obi["yLoc"] = eva.clientY;
+            obi["xPos"] = eva.clientX + gOffsetX;
+            obi["yPos"] = eva.clientY;
+            obi["zx"] = zindex;
+            zindex++;
             gOffsetX += 20;
             break;
         case ("zoom"):
@@ -1004,74 +1151,88 @@ function toObject(ss, nam, eva){
             obi["siteID"] = parts[0];
             obi["mcomp"] = parts[1];
             obi["dName"] = parts[0] + "_" + parts[1];
-            /*
-            obi["cName"] = nam.name;
-            obi["xLoc"] = eva.clientX + gOffsetX;
-            obi["yLoc"] = eva.clientY;
-            */
+//            obi["zx"] 
             break;
         case ("alive"):
             console.info("case alive");
+            cont = obi.content.split(",");
+            parts = cont[0].split("_");
+            obi["siteID"] = parts[0];
+            obi["mcomp"] = parts[1];
+            obi["dName"] = parts[0] + "_" + parts[1];
+            ok = Object.keys(obi);
+            for(p = 0 ; p < ok.length; p++){
+                ko = ok[p];
+                console.info("Alive["+ko+ "] = " + obi[ko]);
+            }
             break;
     }
+    */
     return(obi);
 }
 
 function makePlot1(name, jason, eve){
 // console.info("firstArg "+ name );
- console.info("scaling "+ jason );
- capsule = toObject(jason, name, eve);
- scaling = capsule.scaling;
- console.dir(capsule);
+//    console.info("makePlot1's jason: "+ jason );
+    caps = toObject(jason);
+    scaling = caps.scaling;
+//    console.dir(caps);
 
-/*
- leName = name.name;
- if(typeof leName === "undefined"){
-//        console.info("LeName "+ cid + " Scaling: " + scaling);
-        parts = cid.split("_");
-        parts.shift();
- } else {
-//        console.info("LeName "+ leName + " Scaling: " + scaling);
-        parts = leName.split("_");
- }
- */
-
- console.info("mkPlot1 parts: " + parts);
-// msiteID = parts[0];
-// mcomp = parts[1];
- msiteID = capsule.siteID;
- mcomp = capsule.mcomp;
-
-
-// dName = parts[0] + "_"+ parts[1];
- dName = msiteID + "_"+ mcomp;
- cName = "makePlot1_"+dName;
- console.info("Canvas open: : " + cName);
- var location = createDivIfNeeded(cName);
- activeCanvas[cName] = "makePlot1:" + scaling + ":" + dName;
+    natura = caps.nature;
+    switch(natura){
+        case ("click"):
+            parts = name.name.split("_");
+//            console.info("markPlot1 click: " +name.name + " " +  parts[0] + "  " + parts[1]);
+            msiteID = parts[0];
+            mcomp = parts[1];
+            xPos = eve.clientX + gOffsetX;
+            yPos = eve.clientY;
+            caps["zx"] = zindex;
+            zindex++;
+            gOffsetX += 20;
+            break;
+        case ("zoom"):
+            parts = caps["cName"].split("_");
+            parts.shift();
+//            console.info("markPlot1 zoom: " + caps.cName + " " +  parts[0] + "  " + parts[1]);
+            msiteID = parts[0];
+            mcomp = parts[1];
+            zindex = caps["zx"];
+            break;
+        case ("alive"):
+//            console.info("markPlot1 alive");
+            cont = caps.content.split(",");
+            parts = cont[0].split("_");
+            msiteID = parts[0];
+            mcomp = parts[1];
+            xPos = caps["xPos"];
+            yPos = caps["yPos"];
+            zindex = caps["zx"];
+            break;
+    }
+//    console.info("mkPlot1 parts: " + parts);
+    dName = msiteID + "_"+ mcomp;
+    cName = "makePlot1_"+dName;
+//    console.info("Canvas open: : " + cName);
+    var location = createDivIfNeeded(cName);
+    if(natura === "zoom"){
+        xLoc = location.xPos;
+        yLoc = location.yPos;
+    } else {
+        xLoc = xPos;
+        yLoc = yPos;
+    }
+    activeCanvas[cName] = "code=makePlot1;scaling=" + scaling+";content="+dName;
+// activeCanvas[cName] = "makePlot1:" + scaling + ":" + dName;
 // console.info("Location: " + location.active +  " x: " + location.xPos + " y: " + location.yPos);
     
- tName = msiteID +"_Time";
- tbName = msiteID +"_Time_base";
- timeOffset = Number(data[tbName]);
-// console.info("Time offset: ", timeOffset);
-// uName = parts[2];
-// uUcd = parts[3];
- uName = mdata[dName].unit;
- uUcd = mdata[dName].ucd;
- if( location.active === 0){
-    /*
-    xLoc = eve.clientX + gOffsetX;
-    yLoc = eve.clientY;
-    console.info("mkPlot1 xLoc: " + xLoc + " yLoc: " + yLoc);
-    gOffsetX += 20;
-    */
-    xLoc = capsule.xLoc;
-    yLoc = capsule.yLoc;
- } else {
-    xLoc = location.xPos;
-    yLoc = location.yPos;
- }
+    tName = msiteID +"_Time";
+    tbName = msiteID +"_Time_base";
+    timeOffset = Number(data[tbName]);
+
+
+    uName = mdata[dName].unit;
+    uUcd = mdata[dName].ucd;
 
     cwidth = defWidth * (scaling);
     cheight = defHeight * (scaling);
@@ -1084,12 +1245,8 @@ function makePlot1(name, jason, eve){
     canvas.style.border= "2px solid " + frameColour;
  canvas.style.height = cheight + "px";
  canvas.style.width = cwidth + "px";
- canvas.style.zIndex = zindex;
+ canvas.style.zIndex = caps.zx;
  canvas.style.backgroundColor = "#eeeeee";
-// alert(name.name);
-
-    zindex++;
-// canvas.innerHTML = parts[0] + " " +parts[1] + " " + cName + "/"+ tName + " " + data[dName] + "<br>" + data[tName];
 
  var timex = new Array(data[tName].length);
  for(var i = 0; i < timex.length; i++){
@@ -1099,33 +1256,87 @@ function makePlot1(name, jason, eve){
  generateScatter(cName, parts[0], parts[1], uName, uUcd, data[dName], timex, scaling);
 }
 
-function makePlots(name, scaling, alt){
- var zoom = map.getZoom();
- leName = name.name;
-// console.info("MakePlots LeName "+ leName + " scaling: " + scaling);
- if(typeof leName === "undefined"){
+//    qq = "nature=click;scaling=1";
+
+function makePlots(name, jason, eve){
+    caps = toObject(jason);
+    scaling = caps.scaling;
+// var zoom = map.getZoom();
+    natura = caps.nature;
+    switch(natura){
+        case ("click"):
+//            console.info("case click: " +name.name + " " +  parts[0] + "  " + parts[1]);
+            siteID = name.name;
+            xPos = eve.clientX + gOffsetX;
+            yPos = eve.clientY;
+            caps["zx"] = zindex;
+            zindex++;
+            gOffsetX += 20;
+            break;
+        case ("zoom"):
+            siteID = caps.siteID;
+            xPos = caps["xPos"];
+            yPos = caps["yPos"];
+            zindex = caps["zx"];
+/*
+            parts = caps["cName"].split("_");
+            parts.shift();
+            console.info("case zoom: " + caps.cName + " " +  parts[0] + "  " + p
+arts[1]);
+            msiteID = parts[0];
+            mcomp = parts[1];
+//            obi["dName"] = parts[0] + "_" + parts[1];
+*/
+            break;
+        case ("alive"):
+            siteID = caps.siteID;
+//            console.info("markPlots alive siteID= " + siteID);
+            cont = caps.content.split(",");
+            parts = cont[0].split("_");
+            msiteID = parts[0];
+            mcomp = parts[1];
+            xPos = caps["xPos"];
+            yPos = caps["yPos"];
+            zindex = caps["zx"];
+            break;
+    }
+
+//    siteID = name.name;
+    /*
+    console.info("MakePlots LeName "+ siteID + " scaling: " + scaling );
+    if(typeof siteID === "undefined"){
 //        console.info("LeName "+ alt + " Scaling: " + scaling);
 //        parts = alt.replace("canvas_","").split("_");
         leName = alt;
-// } else {
-//        console.info("LeName "+ leName + " Scaling: " + scaling);
-//        parts = leName.split("_");
  }
+ */
 
- cName = "makePlots_"+leName;
- var location = createDivIfNeeded(cName);
+    cName = "makePlots_"+siteID;
+    var location = createDivIfNeeded(cName);
 
- tName = leName + "_Time";
- tbName = leName + "_Time_base";
- timeOffset = Number(data[tbName]);
+    tName = siteID + "_Time";
+    tbName = siteID + "_Time_base";
+    timeOffset = Number(data[tbName]);
 
- content = siteContent[leName];
- units = siteUnits[leName];
- ucds = siteUCD[leName];
- nPlots = content.length;
+    content = siteContent[siteID];
+    units = siteUnits[siteID];
+    ucds = siteUCD[siteID];
+    nPlots = content.length;
 // console.info("Time offset: ", timeOffset);
 // console.info("things: "+ nPlots + " " + content);
 
+    if(natura == "zoom"){
+//        console.info("natura = " + natura);
+        xLoc = location.xPos;
+        yLoc = location.yPos;
+        yLoc = yPos;
+//        console.info("natura = " + natura +  " loc: " + xLoc + ", " + yLoc + " scaling: " + scaling);
+    } else {
+        xLoc = xPos;
+        yLoc = yPos;
+//        console.info("natura = " + natura +  " loc: " + xLoc + ", " + yLoc + " scaling: " + scaling);
+    }
+    /*
  if( location.active === 0){
     xLoc = fullBoxX;
     yLoc = fullBoxY;
@@ -1133,31 +1344,32 @@ function makePlots(name, scaling, alt){
     xLoc = location.xPos;
     yLoc = location.yPos;
  }
+    */
 
- cWidth = 400 * scaling;
- cHeight = nPlots * 100 * scaling;
- frameColour = "blue";
- canvas = document.getElementById(cName);
- canvas.style.left = xLoc + "px";
- canvas.style.top  = yLoc + "px";
- canvas.style.position = "absolute";
- canvas.style.visibility = "visible";
+    cWidth = 400 * scaling;
+    cHeight = nPlots * 100 * scaling;
+    frameColour = "blue";
+    canvas = document.getElementById(cName);
+    canvas.style.left = xLoc + "px";
+    canvas.style.top  = yLoc + "px";
+    canvas.style.position = "absolute";
+    canvas.style.visibility = "visible";
     canvas.style.border= "2px solid " + frameColour;
- canvas.style.height = cHeight + "px";
- canvas.style.width = cWidth + "px";
- canvas.style.zIndex = zindex;
- canvas.style.backgroundColor = "#eeeeff";
+    canvas.style.height = cHeight + "px";
+    canvas.style.width = cWidth + "px";
+    canvas.style.zIndex = zindex;
+    canvas.style.backgroundColor = "#eeeeff";
 // alert(name.name);
 
     zindex++;
 // canvas.innerHTML = parts[0] + " " +parts[1] + " " + cName + "/"+ tName + " " + data[dName] + "<br>" + data[tName];
 
 // tx = data[tName];
- var timex = new Array(data[tName].length);
- for(var i = 0; i < timex.length; i++){
-    timex[i] = (data[tName][i] + timeOffset) * 1000.0;
+    var timex = new Array(data[tName].length);
+    for(var i = 0; i < timex.length; i++){
+        timex[i] = (data[tName][i] + timeOffset) * 1000.0;
 //    console.info("Time: " + i + ": " + data[tName][i] + ", " + timex[i]);
- }
+    }
 
  geo = plotGeometry(nPlots, cWidth, cHeight, 0);
  mint = d3.min(timex);
@@ -1189,7 +1401,7 @@ function makePlots(name, scaling, alt){
        .attr("y", geo[0].yTop).attr("dy","-1.5em")
        .attr("font-size", "14px")
        .attr("text-anchor", "middle")
-       .text(leName);
+       .text(siteID);
 
     svg.append("text")
        .attr("transform", "translate(0,0)")
@@ -1202,19 +1414,20 @@ function makePlots(name, scaling, alt){
     origScaling = scaling;
     if(scaling == 1){
         face = "+";
-        scaling = 2;
+        scaling = maxScale;
     } else {
         face = "-";
         scaling = 1;
     }
     var any = {};
-    any.name = leName;
-    any.id = leName;
+    any.name = siteID;
+    any.id = siteID;
 //    console.info("Creating any (not amy): "+ any + " " + any.name);
     pTop = height - 24;
     pLeft = width - 24;
     pMidX = width -12;
     pMidY = height -12;
+    var capsule = "nature=zoom;scaling=" + scaling + ";siteID=" +siteID;
     svg.append("rect").attr("x", pLeft).attr("y", 0)
         .attr("width","20").attr("height","20")
         .attr("onclick", "hideMe('" + cName +  "')")
@@ -1230,12 +1443,14 @@ function makePlots(name, scaling, alt){
         .attr("y", pTop)
         .attr("width","20")
         .attr("height","20")
-        .attr("onclick", "makePlots('" + any + "','" + scaling + "','" + leName + "')")
+//        .attr("onclick", "makePlots('" + any + "','" + scaling + "','" + leName + "')")
+        .attr("onclick", "makePlots('" + null + "','" + capsule + "','" + null + "')")
         .attr("fill",frameColour);
 
     svg.append("text")
        .attr("transform", "translate(0,0)")
-       .attr("onclick", "makePlots('" + any + "','" + scaling + "','" + leName + "')")
+        .attr("onclick", "makePlots('" + null + "','" + capsule + "','" + null + "')")
+//       .attr("onclick", "makePlots('" + any + "','" + scaling + "','" + leName + "')")
        .attr("x", pMidX) // .attr("dx", "-0.5em")
        .attr("y", pMidY).attr("dy","+0.25em")
        .attr("font-size", "16px")
@@ -1247,7 +1462,7 @@ function makePlots(name, scaling, alt){
  var theContent = [];
  for (i = 0; i < nPlots ; i++){
     cont = content[i];
-    dName = leName + "_" + cont;
+    dName = siteID + "_" + cont;
     theContent.push(dName);
     unit = units[i];
     laScale = cScales[ucds[i]];
@@ -1316,7 +1531,7 @@ function makePlots(name, scaling, alt){
 //         .attr("fill", "red");
   }
  }
- activeCanvas[cName] = "makePlots:" + origScaling + ":" + theContent;
+    activeCanvas[cName] = "code=makePlots;scaling=" + origScaling+";siteID="+siteID + ";content="+theContent;
  fullBoxX += 10;
  fullBoxY += 10;
 
@@ -1326,29 +1541,23 @@ function makePlots(name, scaling, alt){
 function createDivIfNeeded(tag){
     kDoom = document.getElementById(tag);
     var lok = {};
-    console.info("No-0.5, Doom: " + kDoom);
-    if ( kDoom === null){
-        console.info("No, body does not contain: " + tag);
+//    console.info("No-0.5, Doom: " + kDoom);
+    if ( kDoom == null){
+//        console.info("No, body does not contain: " + tag);
         d3.select("body").append("div")
             .attr("id", tag)
             .attr("draggable", true)
             .attr("ondragstart", "drag_start(event)")
             .attr("onclick", "raiseMe('" + tag + "')")
             .attr("ondblclick", "hideMe('" + tag + "')");
-//        kDuomo = document.getElementById(tag);
-//        console.info("No-1.5, Duomo: " + kDuomo);
-//        if ( kDuomo == null){
-//            console.info("No-2, body does not contain: " + tag);
-//        } else {
-//            console.info("Yes-2, body contains: " + tag);
-//            console.info("result-2: " + kDuomo);
-//        }
         lok.active = 0;
         lok.xPos = -99999;
         lok.yPos = -99999;
+        lok.zindex = 1000;
     } else {
-        console.info("Yes, body contains: " + tag);
+//        console.info("Yes, body contains: " + tag);
         lok.active = 1;
+        lok.zindex = kDoom.style.zindex;
         lefto = kDoom.style.left;
         topo = kDoom.style.top;
         lok.xPos = lefto.replace("px","");
@@ -1381,7 +1590,9 @@ function generateScatter(canvasID, sensorID, qID, qUnit, qUcd, yData, timex, sca
                 .append("svg")
                 .attr("width", width)
                 .attr("height", height);
-  var margin = 40;
+    var margin = 40;
+    w_width = Number(width) - 2 * margin
+    w_height = Number(height) - 2 * margin
 
   minDate = new Date(1.0* (mint-xpadding));
   maxDate = new Date(1.0* (maxt+xpadding));
@@ -1412,6 +1623,12 @@ function generateScatter(canvasID, sensorID, qID, qUnit, qUcd, yData, timex, sca
   var effWidth = width - margin;
 
 //    margin = 0.0;
+    svg.append("rect").attr("x", margin).attr("y", margin)
+        .attr("width",w_width).attr("height",w_height)
+        .attr("draggable", true)
+        .attr("ondragstart", "zoom_in(event)")
+//        .attr("onclick", "hideMe('" + cName +  "')")
+        .attr("fill","white");
   svg.append("g")
        .attr("transform", "translate(" + margin + ", "+ 0.0 + ")")
        .call(y_axis);
@@ -1447,7 +1664,7 @@ function generateScatter(canvasID, sensorID, qID, qUnit, qUcd, yData, timex, sca
 
     if(scaling == 1){
         face = "+";
-        scaling = 2;
+        scaling = maxScale;
     } else {
         face = "-";
         scaling = 1;
@@ -1470,7 +1687,7 @@ function generateScatter(canvasID, sensorID, qID, qUnit, qUcd, yData, timex, sca
        .attr("x", pMidX).attr("y", "12").attr("dy","+0.25em")
        .attr("font-size", "16px").attr("text-anchor", "middle")
        .attr("fill", "white").text("X");
-    var capsule = "src=zoom;scaling=" + scaling + ";cName=" +canvasID;
+    var capsule = "nature=zoom;scaling=" + scaling + ";cName=" +canvasID;
     svg.append("rect")
         .attr("x", pLeft)
         .attr("y", pTop)
