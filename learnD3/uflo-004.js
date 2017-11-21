@@ -205,7 +205,6 @@ function changeLabel(message){
 // var dvd = document.getElementById("mdiv");
 // dvd.innerHTML = message + " " + zoom;
  document.getElementById("mdiv").innerHTML = message + " current-zoom " + zoom;
-
 }
 
 function setMarkersCallBack(map, theMarkers) {
@@ -1117,10 +1116,8 @@ function drawAllPlots(leMarkers){
 }
 
 /*
- *  This function should not depend on the event or the input-id. 
- *  This should be left to each of the plotting routines to decide what to do
- *  with the inforation.
-function toObject(ss, nam, eva){
+ *  This function translate a string into an object based on certain rules:
+ *  key=value separated by ';'
  */
 function toObject(jason){
     pairs = jason.split(";");
@@ -1129,46 +1126,112 @@ function toObject(jason){
         kv = pairs[p].split("=");
         obi[kv[0]] = kv[1];
     }
-    /*
-    switch(obi.nature){
-        case ("click"):
-            parts = nam.name.split("_");
-            console.info("case click: " +nam.name + " " +  parts[0] + "  " + parts[1]);
-            obi["siteID"] = parts[0];
-            obi["mcomp"] = parts[1];
-            obi["cName"] = nam.name;
-            obi["dName"] = nam.name;
-            obi["xPos"] = eva.clientX + gOffsetX;
-            obi["yPos"] = eva.clientY;
-            obi["zx"] = zindex;
-            zindex++;
-            gOffsetX += 20;
-            break;
-        case ("zoom"):
-            parts = obi["cName"].split("_");
-            parts.shift();
-            console.info("case zoom: " + obi.cName + " " +  parts[0] + "  " + parts[1]);
-            obi["siteID"] = parts[0];
-            obi["mcomp"] = parts[1];
-            obi["dName"] = parts[0] + "_" + parts[1];
-//            obi["zx"] 
-            break;
-        case ("alive"):
-            console.info("case alive");
-            cont = obi.content.split(",");
-            parts = cont[0].split("_");
-            obi["siteID"] = parts[0];
-            obi["mcomp"] = parts[1];
-            obi["dName"] = parts[0] + "_" + parts[1];
-            ok = Object.keys(obi);
-            for(p = 0 ; p < ok.length; p++){
-                ko = ok[p];
-                console.info("Alive["+ko+ "] = " + obi[ko]);
-            }
-            break;
+    return(obi);
+}
+
+/*
+ * Function to start an overlay over the map of the requested quantity. In
+ * many aspects, this function need to behave like multiPlots, in the way
+ * it recovers information for a given quantity and how it treats the
+ * locations.
+ * The locations could (in principle) be obtained from theMarkers, it is
+ * perfectly possible to get their longitude and latitude and their label
+ * in order to grab the data.
+ *
+ * Let's take this approach.
+ */
+function overlayHMap(jason){
+/*
+    var ghm = "../ufloScripts/gmaps-heatmap.js";
+    mapo = document.getElementById('map');
+    var fileref=document.createElement('script')
+    fileref.setAttribute("type","text/javascript")
+    fileref.setAttribute("src", ghm)
+    document.getElementsByTagName("head")[0].appendChild(fileref)
+    n = 100000;
+    var x;
+    for (i = 0; i < n; i++){
+        x = i* 1.1;
     }
     */
-    return(obi);
+
+    caps = toObject(jason);
+    console.info("Overlaying HeatMap for " + caps.quantity);
+    nmrkrs = theMarkers.length;
+    /*
+    myMarkers = theMarkers;
+    */
+    console.info("N markers: "+ nmrkrs);
+    var fullLot = [];
+    for(var km = 0 ; km < nmrkrs; km++){
+        mrkr = theMarkers[km];
+        mpos = mrkr.getPosition();
+        mlat = mpos.lat();
+        mlon = mpos.lng();
+        site_id = mrkr.label + "_" + caps.quantity;
+        rmap = new google.maps.LatLng(mlat, mlon);
+        dd = data[site_id];
+        value = dd[ dd.length-1];
+        console.info("Marker " + site_id + " Pos: " + mrkr.getPosition());
+        console.dir(mpos);
+        console.dir(rmap);
+        console.info("Marker Lat: " + mlat + " Marker lon: " + mlon);
+        console.info("Qty: " + caps.quantity + " = " + value);
+        var dobj = {};
+        /*
+        dobj["lat"] = mlat;
+        dobj["lng"] = mlon;
+        */
+        dobj["location"] = rmap;
+        dobj["weight"] = value;
+        fullLot.push(dobj);
+        console.dir(dobj);
+        /*
+        combo = mrkr.label + "_" + qtty;
+        if(map.getBounds().contains(mrkr.getPosition()) ){
+            if( hamlet[combo] == 1){
+                inside.push(combo);
+            }
+        }
+        */
+    }
+    console.info("Full-lot has " + fullLot.length);
+    var mcon = {
+    // radius should be small ONLY if scaleRadius is true (or small radius is intended)
+    "radius": 2,
+    "maxOpacity": 1,
+    // scales the radius based on map zoom
+    "scaleRadius": true,
+    // if set to false the heatmap uses the global maximum for colorization
+    // if activated: uses the data maximum within the current map boundaries
+    //   (there will always be a red spot with useLocalExtremas true)
+    "useLocalExtrema": true,
+    // which field name in your data represents the latitude - default "lat"
+    latField: 'lat',
+    // which field name in your data represents the longitude - default "lng"
+    lngField: 'lng',
+    // which field name in your data represents the data value - default "value"
+    valueField: 'value'
+    }
+    console.dir(fullLot);
+    for (i = 0; i < nmrkrs; i++){
+        console.info("lat/lon/weight: " + fullLot[i].location.lat() + ", ", fullLot[i].location.lng() + ", " + fullLot[i].weight);
+    }
+    var heatmap = new google.maps.visualization.HeatmapLayer({
+            data: fullLot
+            });
+    /*
+    heatmap = new HeatmapOverlay(map, mcon);
+    var testData = {};
+    testData["max"] = 40;
+    testData["data"] = fullLot;
+
+    console.dir(heatmap);
+    console.dir(testData);
+    */
+    heatmap.setMap(map);
+    /*
+    */
 }
 
 function makePlot1(name, jason, eve){

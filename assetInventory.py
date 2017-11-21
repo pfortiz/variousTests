@@ -64,6 +64,19 @@ stamp = "{:.6f}".format(laDate + leTime)
 epoch = datetime.datetime(1970, 1, 1)
 #print "epoch = " , epoch
 assetsFile = "/Users/Shared/ufloTables/assets.db"
+
+def histoire(hstamp, action, key, value):
+    hist = {}
+#    hist["hrStamp"] = hstamp
+    # hist["stamp"] = stime2utime(hstamp)
+    if not hstamp is None:
+        hist["stamp"] = time.mktime(datetime.datetime.strptime(hstamp, "%d/%m/%Y").timetuple())
+    hist["logTime"] = time.time()
+#    hist["hrLogTime"] = str(datetime.datetime.now())
+    hist["action"] = action
+    hist[key] = value
+    return hist
+
 handles = {
         "siteid" : "site ID",
         "address" : "Street Address",
@@ -93,7 +106,8 @@ handles = {
 
 actions = ["addSite", "addSitesFromFile",
             "addSensor", "addSensorsFromFile",
-            "attachSensorToSite", "detachSensor",
+            "attachSensorToSite", "detachSensorFromSite",
+            "examineSensorSite",
             "addMaintenance", "terminate"];
 
 actionsHelp = {
@@ -107,7 +121,9 @@ actionsHelp = {
     "showOperational": "<date> \n\t Show all operational sites/sensors at a given date",
     "showDictionary": "\n\tShow all entries into this database",
     "showHelp": "[<action>]\n\tShow help for an action or in general.",
-    "inputTemplate": "<addsite|addsensor>\n\tCreate a template (in stdout) to enter sensor(site) data from files",
+    "getInputTemplate": "<addsite|addsensor>\n\tCreate a template (in stdout) to enter sensor(site) data from files",
+    "examineSensorSite": "<sensorID> <siteID> <date> : \n\t examine information and status for a sensor/site pair at a given date",
+
     };
 
 arguments = {
@@ -131,9 +147,12 @@ arguments = {
     "showdictionary" : [
         "qname", 
         ],
-    "inputtemplate" : [
+    "getinputtemplate" : [
         "qname", "qunits", "quncertainty", "qucd"
         ],
+    "attachsensortosite" : [ "qucd" ],
+    "detachsensorfromsite" : [ "qucd" ],
+    "examinesensorsite" : [ "qucd" ],
 }
 
 def stime2utime(stime):
@@ -145,6 +164,30 @@ def do_showHelp(fields, gDict, args):
     """
     pass
 
+def showSite(site, gDict):
+    print "Data for site: ", site
+    for k in sorted(gDict["sites"][site].keys()):
+        print " {}.{}= {}".format(site, k, gDict["sites"][site][k])
+
+def showSensor(sensor, gDict):
+    leSensor = gDict["sensors"][sensor]
+    print "Data for sensor: ", sensor 
+    for k in sorted(leSensor.keys()): # gDict["sites"][site].keys()):
+        if "detectors" in k:
+            continue
+        if k == "provider":
+#            print leSensor[k]
+            p = sorted(leSensor[k].keys())
+            for e in p:
+                f = leSensor[k][e]
+                print " {}.{}.{} = {}".format(sensor, k, e, f)
+            pass
+        else:
+            print " {}.{}= {}".format(sensor, k, leSensor[k])
+    for ms in leSensor["listOfDetectors"]:
+        qtty = leSensor["detectors"][ms]
+        print sensor, ms, qtty['unit'], qtty['ucd']
+
 def do_showDictionary(fields, gDict, args):
     """
     Function to show the dictionary content
@@ -154,16 +197,13 @@ def do_showDictionary(fields, gDict, args):
         sites = gDict["listOfSites"]
         print "List of sites: ", sites
         for site in sites:
-            print site
-            for k in sorted(gDict["sites"][site].keys()):
-                print " {}.{}= {}".format(site, k, gDict["sites"][site][k])
+            showSite(site, gDict)
         
-    for sensor in gDict["listOfSensors"]:
-        leSensor = gDict["sensors"][sensor]
-        print sensor , leSensor["measure"]
-        for ms in leSensor["measure"]:
-            qtty = leSensor["measurablesD"][ms]
-            print sensor, ms, qtty['units'], qtty['UCD']
+    if "listOfSensors" in gDict:
+        sensors = gDict["listOfSensors"]
+        print "List of sensors: ", sensors
+        for sensor in sensors:
+            showSensor(sensor, gDict)
     pass
 
 def dumpclean(obj):
@@ -213,12 +253,12 @@ def appendSite(site):
 #    sdu = str(datetime.datetime(int(sd[2]), int(sd[1]), int(sd[0])))
     sdu = stime2utime(sdft)
 #    print "sdu = ", sdu, " utime: ", sepoch
-    site["firstepoch"] = sepoch
-    site["lastdate"] = "01/01/3000"
-#    fd =  site["lastdate"].split("/")
+    site["epoch.f"] = sepoch
+    site["date.l"] = "01/01/3000"
+#    fd =  site["date.l"].split("/")
 #    fdu = str(datetime.datetime(int(fd[2]), int(fd[1]), int(fd[0])))
-    fdu = stime2utime(site["lastdate"])
-    site["lastepoch"] = fdu
+    fdu = stime2utime(site["date.l"])
+    site["epoch.l"] = fdu
     site["history"] = []
     stamp = [ sdu , sdft, "activated"]
     site["history"].append(stamp)
@@ -253,13 +293,9 @@ def appendSite(site):
         msg = "addSite"
 
     gDict["sites"][sid] = site
-    event = [
-        time.time(),
-        str(datetime.datetime.now()),
-        msg,
-        [sid]
-        ]
-    gDict["history"].append(event)
+#    event = [ time.time(), str(datetime.datetime.now()), msg, [sid] ]
+    event = histoire(None, msg, "id", sid)
+    gDict["log"].append(event)
     print "{} site {}".format(msg,sid)
 
 def do_addSitesFromFile(fields, gDict, args):
@@ -281,7 +317,8 @@ def do_addSitesFromFile(fields, gDict, args):
     for line in lines:
         if line != "addsite":
             kv = line.split("=")
-            site[kv[0]] = kv[1]
+            if kv[0] != "sensorid":
+                site[kv[0]] = kv[1]
         else:
 #            print "Line to split: ", line
 #            print "Adding new site"
@@ -342,12 +379,11 @@ def do_addSensor(fields, gDict, args):
 
         quant[qN] = obi
         
-    print "\n\n"
-    print sensor
+#    print "\n\n"
+#    print sensor
 
-    # TODO: fix in the input from file.
-    sensor["measurables"] = lquant
-    sensor["measurablesD"] = quant
+    sensor["detectors"] = quant
+    sensor["listOfDetectors"] = lquant
     appendSensor(sensor)
 
 def appendSensor(sensor):
@@ -359,20 +395,30 @@ def appendSensor(sensor):
     sdft =  sensor["firstdate"]
 #    sdu = str(datetime.datetime(int(sd[2]), int(sd[1]), int(sd[0])))
     sdu = stime2utime(sdft)
-    print "sdu = ", sdu, " utime: ", sepoch
-    sensor["firstepoch"] = sepoch
-    sensor["lastdate"] = "01/01/3000"
-#    fd =  sensor["lastdate"].split("/")
+#    print "sdu = ", sdu, " utime: ", sepoch
+    sensor["epoch.f"] = sepoch
+    sensor["date.l"] = "01/01/3000"
+#    fd =  sensor["date.l"].split("/")
 #    fdu = str(datetime.datetime(int(fd[2]), int(fd[1]), int(fd[0])))
-    fdu = stime2utime(sensor["lastdate"])
-    sensor["lastepoch"] = fdu
+    fdu = stime2utime(sensor["date.l"])
+    sensor["epoch.l"] = fdu
     sensor["history"] = []
     stamp = [ sdu , "activated"]
     sensor["history"].append(stamp)
+
 #    if(sensor["siteid"] != "-"):
-    if "siteid" in sensor:
-        if sensor["siteid"] != "-":
-            sensor["history"].append([sdu, sdft, "pairedWith", sensor["siteid"] ])
+#    if "siteid" in sensor:
+#        if sensor["siteid"] != "-":
+#            sensor["history"].append([sdu, sdft, "pairedWith", sensor["siteid"] ])
+
+#    for det in sensor["listOfDetectors"]:
+#        print "LOD", type(det), det
+#    print "sensor: ", sensor
+    lesDetectors = sensor["detectors"]
+    for det in sorted(sensor["detectors"].keys()):
+#        print type(det), det, lesDetectors[det]
+        lesDetectors[det]["history"] = []
+#    sys.exit()
 
     if "provider" in sensor:
         provider = sensor["provider"]
@@ -385,7 +431,7 @@ def appendSensor(sensor):
             sensor["provider"] = obi
         else:
             sensor["provider"] = { "id" : provider}
-    print sensor
+#    print sensor
 
     sid = sensor["sensorid"]
     if "sensors" not in gDict:
@@ -399,13 +445,9 @@ def appendSensor(sensor):
         msg = "addSensor"
     gDict["sensors"][sid] = sensor
 #    gDict["listOfSensors"].append(sid)
-    event = [
-        ctime,
-        str(datetime.datetime.now()),
-        msg,
-        [sid]
-        ]
-    gDict["history"].append(event)
+#    event = [ ctime, str(datetime.datetime.now()), msg, [sid] ]
+    event = histoire(None, msg, "id", sid)
+    gDict["log"].append(event)
 
 def do_addSensorsFromFile(fields, gDict, args):
     """
@@ -421,19 +463,223 @@ def do_addSensorsFromFile(fields, gDict, args):
     dfile = open(fileName,"r")
     lines = dfile.read().splitlines()
     dfile.close()
-    print "Number of lines: ", len(lines)
+#    print "Number of lines: ", len(lines)
     sensor = {}
+    lquant  = []
+    quant = {}
     for line in lines:
         if line != "addsensor":
             kv = line.split("=")
-            sensor[kv[0]] = kv[1]
+            if kv[0] == "siteid":
+                continue
+            if kv[0] == "measure":
+                qs = kv[1].split("|")
+                obi = {}
+                for qq in qs:
+                    qt = qq.split(":")
+                    obi[qt[0] ] = qt[1]
+#                    print "measure split: ", qt[0], qt[1]
+                qN = obi["name"]
+                lquant.append(qN)
+                quant[qN] = obi
+            else:
+                sensor[kv[0]] = kv[1]
         else:
 #            print "Line to split: ", line
 #            print "Adding new sensor"
 #            print sensor
+#            if "measure" in sensor:
+#                qtty = sensor["measure"]
+            if "measure" in sensor:
+                del sensor["measure"]
+            sensor["detectors"] = quant
+            sensor["listOfDetectors"] = lquant
             appendSensor(sensor)
 
             sensor = {}
+            lquant  = []
+            quant = {}
+
+def do_attachSensorToSite(fields, gDict, args):
+    """
+    Function to attach a sensor to a site
+    """
+    if len(args) < 3:
+        print "Invalid syntax, try:"
+        print execute, "attachSensorsToSite sensorID siteID DD/MM/YYYY"
+        sys.exit()
+    sensorid = args[0].lower()
+    siteid = args[1].lower()
+    date = args[2]
+
+    sites = gDict["sites"]
+    sensors = gDict["sensors"]
+    siteKey = None
+    sensorKey = None
+    for site in sites.keys():
+        sid = sites[site]["siteid"]
+        if sid.lower() == siteid:
+            print "site", sid, " located"
+            siteKey = site
+            
+    for sensor in sensors.keys():
+        sid = sensors[sensor]["sensorid"]
+        if sid.lower() == sensorid:
+            print "sensor", sid, " located"
+            sensorKey = sensor
+            
+    if sensorKey is None:
+        print "Invalid sensor: ", sensorid
+    if siteKey is None:
+        print "Invalid site: ", siteid
+    fdu = stime2utime(date)
+    if "pairs" not in gDict:
+        gDict["pairs"] = {}
+    pairs = gDict["pairs"]
+    tag = "{}|{}".format(siteKey, sensorKey)
+    print "pairing: ", sensorid, siteid, date, fdu, tag
+    if tag not in pairs:
+        pairs[tag] = []
+    tev = histoire(date,"attach", "status", "on");
+#    entry = { "action": "attach", "date": date, "epoch": fdu, "timex":tev}
+#    pairs[tag].append(tev)
+    insert(tev, pairs[tag])
+#    stamp = [ tev["stamp"] , "attached to {}".format(siteKey)]
+    gDict["sensors"][sensorKey]["history"].append(stamp)
+    detectors = gDict["sensors"][sensorKey]["detectors"]
+    for det in detectors.keys():
+        detectors[det]["history"].append(tev)
+
+
+def insert(stamp, aList):
+    """
+    Function to insert a time stamp defined by "histoire()" into a list of
+    these elements so that the list is always time sorted
+    """
+    nTime = stamp["stamp"]
+    lSize = len(aList)
+    print "List size", lSize
+    if lSize == 0:
+        aList.append(stamp)
+        end = histoire("01/01/3000","theEnd", "status", "dead")
+        aList.append(end)
+    else:
+        top = lSize - 1
+        for i in range(0,top):
+            if nTime >= aList[i]["stamp"] and nTime < aList[i+1]["stamp"]:
+                print "insertion point: " , i
+                aList.insert(i+1,stamp)
+                break
+
+def do_examineSensorSite(fields, gDict, args):
+    """
+    Function to examine the history of a sensor/site pair
+    """
+    if len(args) < 3:
+        print "Invalid syntax, try:"
+        print execute, "detachSensorsFromSite sensorID siteID DD/MM/YYYY"
+        sys.exit()
+    sensorid = args[0].lower()
+    siteid = args[1].lower()
+    date = args[2]
+
+    sites = gDict["sites"]
+    sensors = gDict["sensors"]
+    siteKey = None
+    sensorKey = None
+    for site in sites.keys():
+        sid = sites[site]["siteid"]
+        if sid.lower() == siteid:
+            print "site", sid, " located"
+            siteKey = site
+            
+    for sensor in sensors.keys():
+        sid = sensors[sensor]["sensorid"]
+        if sid.lower() == sensorid:
+            print "sensor", sid, " located"
+            sensorKey = sensor
+            
+    if sensorKey is None:
+        print "Invalid sensor: ", sensorid
+    if siteKey is None:
+        print "Invalid site: ", siteid
+    pairs = gDict["pairs"]
+    tag = "{}|{}".format(siteKey, sensorKey)
+    if tag not in pairs:
+        print "Combination not in the dictionary: ", tag
+        sys.exit()
+    print "examining: ", sensorid, siteid, date, tag
+    tev = histoire(date,"test", "status", "undef");
+    status = getStatus(tev, pairs[tag])
+    print tag, "@", date, status
+
+def getStatus(eve, things):
+    nThings = len(things)
+    print "List size", nThings
+    if nThings == 0:
+#        print "Nothing to examine, sorry!"
+        return "undef"
+    else:
+        top = nThings - 1
+        nTime = eve["stamp"]
+        for i in range(0,top):
+            thing = things[i]
+            hrTime = datetime.datetime.fromtimestamp( int(thing["stamp"])).strftime('%Y-%m-%d')
+            print thing["action"], hrTime
+            if nTime >= things[i]["stamp"] and nTime < things[i+1]["stamp"]:
+                print "insertion point: " , i, "status: ", things[i]["status"]
+                return things[i]["status"]
+#                break
+
+def do_detachSensorFromSite(fields, gDict, args):
+    """
+    Function to detach a sensor from a site
+    """
+    if len(args) < 3:
+        print "Invalid syntax, try:"
+        print execute, "detachSensorsFromSite sensorID siteID DD/MM/YYYY"
+        sys.exit()
+    sensorid = args[0].lower()
+    siteid = args[1].lower()
+    date = args[2]
+
+    sites = gDict["sites"]
+    sensors = gDict["sensors"]
+    siteKey = None
+    sensorKey = None
+    for site in sites.keys():
+        sid = sites[site]["siteid"]
+        if sid.lower() == siteid:
+            print "site", sid, " located"
+            siteKey = site
+            
+    for sensor in sensors.keys():
+        sid = sensors[sensor]["sensorid"]
+        if sid.lower() == sensorid:
+            print "sensor", sid, " located"
+            sensorKey = sensor
+            
+    if sensorKey is None:
+        print "Invalid sensor: ", sensorid
+    if siteKey is None:
+        print "Invalid site: ", siteid
+    fdu = stime2utime(date)
+    if "pairs" not in gDict:
+        gDict["pairs"] = {}
+    pairs = gDict["pairs"]
+    tag = "{}|{}".format(siteKey, sensorKey)
+    print "pairing: ", sensorid, siteid, date, fdu, tag
+    if tag not in pairs:
+        pairs[tag] = []
+    tev = histoire(date,"detach", "status", "off");
+    insert(tev, pairs[tag])
+    # modify the sensor's general history
+#    stamp = [ tev["stamp"] , "detached from {}".format(siteKey)]
+    gDict["sensors"][sensorKey]["history"].append(stamp)
+    detectors = gDict["sensors"][sensorKey]["detectors"]
+    for det in detectors.keys():
+        detectors[det]["history"].append(tev)
+
 
 #  End of the function definitions
 #  main code starts here
@@ -451,7 +697,7 @@ else:
 #    gDict["sites"] = {}
 #    gDict["listOfSensors"] = []
 #    gDict["sensors"] = {}
-    gDict["history"] = []
+    gDict["log"] = []
 
 
 functions = {}
@@ -461,10 +707,15 @@ functions["addsitesfromfile"] = do_addSitesFromFile;
 functions["addsensorsfromfile"] = do_addSensorsFromFile;
 functions["showdictionary"] = do_showDictionary;
 functions["showhelp"] = do_showHelp;
-functions["inputtemplate"] = do_createTemplate;
+functions["getinputtemplate"] = do_createTemplate;
+functions["attachsensortosite"] = do_attachSensorToSite;
+functions["detachsensorfromsite"] = do_detachSensorFromSite;
+functions["examinesensorsite"] = do_examineSensorSite;
 
 args = sys.argv
-args.pop(0)
+executable = args.pop(0)
+ex = executable.split("/")
+execute = ex.pop()
 nargs = len(args)
 
 if nargs == 0:

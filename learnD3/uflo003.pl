@@ -513,15 +513,20 @@ $canvases = "";
 
 $i = 0;
 $j = 0;
-my ($plotButtons, $button);
+my ($plotButtons, $button, $actionTable);
+$actionTable = "<table>\n";
 foreach $_ (sort keys %allContents){
     print JS1 "offsetX[\"$_\"] = $i;\n";
     print JS1 "offsetY[\"$_\"] = $j;\n";
+    $buttonP = "<input id=\"plot$_\" type=\"submit\" value=\"Plot\" onclick=\"multiPlot('nature=click;scaling=1;quantity=$_',nada)\">";
+    $buttonS = "<input id=\"hmap$_\" type=\"submit\" value=\"Ovly\" onclick=\"overlayHMap('nature=click;scaling=1;quantity=$_')\">";
     $button = "<input name=\"plot$_\" type=\"submit\" value=\"Plot $_\" onclick=\"multiPlot('nature=click;scaling=1;quantity=$_',nada)\">";
     $plotButtons .= "$button\n<br>\n";
+    $actionTable .= "<tr><td>$_</td><td>$buttonP</td><td>$buttonS</td></tr>\n";
     $i+= 5;
     $j+= 10;
 }
+$actionTable .= "</table>\n";
 
 foreach $_ (sort keys %data){
     print JS1 "data[\"$_\"] = [$data{$_}];\n";
@@ -591,7 +596,8 @@ function initMap() {
             {imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
     markersActivated = 1;
 
-// Should I add a listener?
+// Q: Should I add a listener? 
+// A: Yes, and include the code right away
     google.maps.event.addListenerOnce(map, 'idle', function(){
     // do something only the first time the map is loaded
         if(live > 0){
@@ -600,9 +606,24 @@ function initMap() {
         } else {
             console.info("I'm not in live mode, no plots drawn");
         }
+        /*
+        var ghm = "../ufloScripts/gmaps-heatmap.js";
+        var fileref=document.createElement('script')
+        fileref.setAttribute("type","text/javascript")
+        fileref.setAttribute("src", ghm)
+        document.getElementsByTagName("head")[0].appendChild(fileref)
+        */
+
     });
 }
 HEADER
+#    var ghm = "../ufloScripts/gmaps-heatmap.js";
+#    console.info("ghm : " + ghm);
+#    var scriptString1 = "<script src=\\"" + ghm;
+#    var scriptString2 = "\\"> </scr" + "pt>";
+#    var ss = scriptString1 + scriptString2;
+#    console.info("ScriptString : " + ss);
+#    document.getElementsByTagName("head")[0].innerHTML += ss;
 
 #var TILE_SIZE = 256;
 #
@@ -861,11 +882,14 @@ The Urban Flows Observatory &nbsp;&nbsp;&nbsp; Sheffield
 Data for $tmday/$tsmon/$tyear 
 <!--
 zoom = $mapZoom $slon $slat
+<script async defer src="../ufloScripts/gmaps-heatmap.js"> </script>
+<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8Lq5FuZylrN-pO73Fv5_UU-Lg83N_vMY&libraries=visualization">
 -->
 <br>
 <div id="map"></div>
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8Lq5FuZylrN-pO73Fv5_UU-Lg83N_vMY&callback=initMap">
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8Lq5FuZylrN-pO73Fv5_UU-Lg83N_vMY&callback=initMap&libraries=visualization"> </script>
 </script>
+<script src="../ufloScripts/heatmap.js"> </script>
 
 <div id="mdiv"></div>
 $canvases
@@ -951,6 +975,7 @@ onMouseOver="changeLabel('the SVG')">
 
 $plotButtons
 </div>
+$actionTable
 <br><br><br>
 <div id="wishes" style="backgroundcolor: #ffffee; visibility: hidden; float: right">
 <input name="plotWish" type="button" value="Plot Selected"
