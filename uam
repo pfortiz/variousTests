@@ -121,6 +121,11 @@ actionsHelp = {
         "short":"Add a list of sites from a file",
         "long": """Enter a list of sites from a file."""
         },
+    "closeSite": {
+        "args":"siteid",
+        "short":"Mark the site as closed",
+        "long": """Mark a given site with status closed."""
+        },
     "addSensor": {
         "args": "",
         "short":"Add a sensor by hand",
@@ -178,7 +183,19 @@ to avoid providing data for that detector while its status is not back to 'on'""
     "show": {
         "args": "<element> [@date]",
         "short":"Show a particular database element now or at the specified date",
-        "long":""" """
+        "long":"""show allows you to examine different aspects of the data.
+Valid entries are:
+uam show sensor=<sensorid>|*   Show data for one sensor or all if * is used
+uam show site=<siteid>|*       Show data for a site or all if * is used
+uam show pair=<sensor!site>|*  Show data for a pair sensor + site
+uam show log                   Show the activity as it was entered
+uam show chronology            Show the sequence of operations on sensors,
+                               sites, etc
+uam show dictionary            Show the whole data structure
+uam show activeSites date      Show all active sites at date DD/MM/YYYY
+uam show activeSensors date    Show all active sensors at date DD/MM/YYYY
+uam show activePairs date      Show all active sensor/site pairs at DD/MM/YYYY
+        """
         },
     "help": {
         "args":"[<action>]",
@@ -312,7 +329,14 @@ def showSite(site, gDict, limitUstamp):
     print "Data for site: ", site
 #    print "date comparison: ", firstUs, limitUstamp
     for k in sorted(gDict["sites"][site].keys()):
-        print " {}.{}= {}".format(site, k, gDict["sites"][site][k])
+        if k == "history":
+            print " {}.{}".format(site, k)
+            hist = gDict["sites"][site][k]
+            showHist({"act":"Action", "status":"Status"})
+            for he in hist:
+                showHist(he)
+        else:
+            print " {}.{}= {}".format(site, k, gDict["sites"][site][k])
 
 def showSensor(sensor, gDict, showH, limitUstamp):
     leSensor = gDict["sensors"][sensor]
@@ -327,9 +351,15 @@ def showSensor(sensor, gDict, showH, limitUstamp):
                 f = leSensor[k][e]
                 print " {}.{}.{} = {}".format(sensor, k, e, f)
             pass
+        elif k == "listOfDetectors":
+            dets = []
+            for d in leSensor[k]:
+                dets.append(str(d))
+            print " {}.{}= {}".format(sensor, k, dets)
         elif k == "history" and showH == True:
             hist = leSensor[k]
             print " {}.{}:".format(sensor, k)
+            showHist({"act":"Action", "status":"Status"})
             for he in hist:
                 showHist(he)
         elif k == "history" and showH == False:
@@ -344,20 +374,26 @@ def showSensor(sensor, gDict, showH, limitUstamp):
     print sensor,  "detectors:"
     for ms in leSensor["listOfDetectors"]:
         qtty = leSensor["detectors"][ms]
-        for h in  qtty['history']:
-            insert(h, chist)
         print sensor, ms, qtty['unit'], qtty['ucd']
-        print sensor, ms, "history"
-        for ch in chist:
-            showHist(ch)
+
+        if len(qtty['history']) > 0:
+            for h in  qtty['history']:
+                insert(h, chist)
+            print sensor, ms, "history"
+            showHist({"act":"Action", "status":"Status"})
+            for ch in chist:
+                showHist(ch)
 
 def showHist(entry):
     """
     method to show history items
     """
-    if entry["tst"] == 32503680000:
-        return
-    hrTime = datetime.datetime.fromtimestamp( int(entry["tst"])).strftime('%Y-%m-%d')
+    if "tst" in entry:
+        if entry["tst"] == 32503680000:
+            return
+        hrTime = datetime.datetime.fromtimestamp( int(entry["tst"])).strftime('%Y-%m-%d')
+    else:
+        hrTime = "Date      "
     if "status" in entry:
         status = entry["status"]
     else:
@@ -366,7 +402,9 @@ def showHist(entry):
         action = entry["act"]
     else:
         action = ""
-    print "  ", hrTime, action, status
+    msg = "  {:12s} {:25s} {:10s}".format(hrTime, action, status)
+#    print "  ", hrTime, action, status
+    print msg
 
 def do_showThings(fields, gDict, args):
     """
@@ -374,7 +412,7 @@ def do_showThings(fields, gDict, args):
     """
     nargs = len(args)
     if nargs == 0:
-        print " just show 'help show'"
+        print actionsHelp["show"]["long"]
         return
     
     doThis = {}
@@ -388,7 +426,8 @@ def do_showThings(fields, gDict, args):
         else:
             doThis[lcarg] = None
             todo.append(lcarg)
-    showItem = todo[0]
+
+    showTime = todo[0]
     if nargs > 1:
         arg2 = args[1]
 #    dumpclean(gDict)
@@ -396,8 +435,9 @@ def do_showThings(fields, gDict, args):
     if "date" in todo:
         iDate = doThis["date"]
         iDate = stime2utime(doThis["date"])
-    if showItem == "dictionary":
-        dicFile = doThis[showItem]
+
+    if showTime == "dictionary":
+        dicFile = doThis[showTime]
         if not dicFile is None:
 #            print "must read a new file and get dictionary"
             assetsFile = "/Users/Shared/ufloTables/{}".format(dicFile)
@@ -428,13 +468,14 @@ def do_showThings(fields, gDict, args):
     #        print "List of pairs: ", pairs
             for pair in pairs.keys():
                 print pair #, pairs[pair]
+                showHist({"act":"Action", "status":"Status"})
                 for entry in pairs[pair]:
                     showHist(entry)
 
-    elif showItem == "sensor":
+    elif showTime == "sensor":
         if "listOfSensors" in gDict:
             sensors = gDict["listOfSensors"]
-            mysensor = doThis[showItem]
+            mysensor = doThis[showTime]
             if mysensor == "*":
                 for sensor in sensors:
                     showSensor(sensor, gDict, False, iDate)
@@ -444,10 +485,10 @@ def do_showThings(fields, gDict, args):
                         showSensor(sensor, gDict, True, iDate)
                         break
             
-    elif showItem == "site":
+    elif showTime == "site":
         if "listOfSites" in gDict:
             sites = gDict["listOfSites"]
-            mysite = doThis[showItem]
+            mysite = doThis[showTime]
             if mysite == "*":
                 for site in sites:
                     showSite(site, gDict, iDate)
@@ -457,8 +498,41 @@ def do_showThings(fields, gDict, args):
                         showSite(site, gDict, iDate)
             
         pass
+
+    elif showTime == "log":
+        if "log" in gDict:
+            logs = gDict["log"]
+            for log in logs:
+                hrTime = datetime.datetime.fromtimestamp( float(log["lgt"])).strftime('%a %d/%m/%Y %H:%M:%S.%fZ')
+                print hrTime, log["act"], "on", log["xdate"]
+        pass
+
+    elif showTime == "chronology":
+        if "log" in gDict:
+            logs = gDict["log"]
+            tdic = {}
+            nl = 0
+            for log in logs:
+                key = "{}_{}".format(log["tst"], nl)
+                tdic[key ]  = log
+                nl += 1
+
+            for logk in sorted(tdic.keys()):
+                log = tdic[logk]
+                hrTime = datetime.datetime.fromtimestamp( float(log["lgt"])).strftime('%a %d/%m/%Y %H:%M:%S.%fZ')
+                print hrTime, log["act"], "on", log["xdate"]
+        pass
+
+    elif showTime == "pair":
+        if "pairs" in gDict:
+            pairs = gDict["pairs"]
+            for pair in sorted(pairs.keys()):
+                print "Pair ", pair
+                showHist({"act":"Action", "status":"Status"})
+                for hist in pairs[pair]:
+                    showHist(hist)
     else:
-        print "unrecognised operation: ", showItem
+        print "unrecognised operation: ", showTime
 
     sys.exit()
 
@@ -527,7 +601,7 @@ def appendSite(site):
         else:
             site["operator"] = { "id" : operator}
         
-    if "sensorid" in site:
+    if "sensoridee" in site:
         if site["sensorid"] != "-":
             sensors = site["sensorid"].split("|")
             site["sensorid"] = sensors
@@ -547,13 +621,14 @@ def appendSite(site):
 
     gDict["sites"][sid] = site
 #    event = [ time.time(), str(datetime.datetime.now()), msg, [sid] ]
-    event = histoire(None, msg, "id", sid)
+    event = histoire(sdft, "{} {}".format(msg,sid), "xdate", sdft)
     gDict["log"].append(event)
-    print "{} site {}".format(msg,sid)
+    print "{} site {} on {}".format(msg,sid, sdft)
     stamp = histoire(sdft, "operational", "status", "ready")
     site["history"].append(stamp)
-    stamp = histoire("01/01/3000","decommissioned", "status", "dead");
-    site["history"].append(stamp)
+    if msg == "addSite":
+        stamp = histoire("01/01/3000","decommissioned", "status", "dead");
+        site["history"].append(stamp)
 
 def do_addSitesFromFile(fields, gDict, args):
     """
@@ -704,7 +779,8 @@ def appendSensor(sensor):
     gDict["sensors"][sid] = sensor
 #    gDict["listOfSensors"].append(sid)
 #    event = [ ctime, str(datetime.datetime.now()), msg, [sid] ]
-    event = histoire(None, msg, "id", sid)
+    event = histoire(sdft, "{} {}".format(msg,sid), "xdate", sdft)
+    print "{} sensor {} {}".format(msg,sid, sdft)
     gDict["log"].append(event)
 
 def do_addSensorsFromFile(fields, gDict, args):
@@ -770,43 +846,32 @@ def do_activateSensorInSite(fields, gDict, args):
     siteid = args[1].lower()
     date = args[2]
 
-    sites = gDict["sites"]
-    sensors = gDict["sensors"]
-    siteKey = None
-    sensorKey = None
-    for site in sites.keys():
-        sid = sites[site]["siteid"]
-        if sid.lower() == siteid:
-            print "site", sid, " located"
-            siteKey = site
-            
-    for sensor in sensors.keys():
-        sid = sensors[sensor]["sensorid"]
-        if sid.lower() == sensorid:
-            print "sensor", sid, " located"
-            sensorKey = sensor
-            
-    if sensorKey is None:
-        print "Invalid sensor: ", sensorid
-    if siteKey is None:
-        print "Invalid site: ", siteid
+    (siteKey, sensorKey) = getSenSite(gDict, sensorid, siteid, date,
+                            "activating")
+
     fdu = stime2utime(date)
     if "pairs" not in gDict:
-        gDict["pairs"] = {}
+        print "Pair sensor/site is not present. Doing nothing"
+        sys.exit()
+#        gDict["pairs"] = {}
     pairs = gDict["pairs"]
     tag = "{}|{}".format(siteKey, sensorKey)
-    print "Bringing{} at {} ({}) live on: {} ".format(sensorid,siteid,tag,date)
+    print "Taking: {} at {} ({}) live on: {} ".format(sensorid,siteid,tag,date)
     if tag not in pairs:
         pairs[tag] = []
     tev = histoire(date,"running", "status", "on");
-#    entry = { "act": "attach", "date": date, "epoch": fdu, "timex":tev}
-#    pairs[tag].append(tev)
 
     insert(tev, pairs[tag])
 
 #    stamp = [ tev["tst"] , "attached to {}".format(siteKey)]
 #    gDict["sensors"][sensorKey]["history"].append(stamp)
     insert(tev, gDict["sensors"][sensorKey]["history"])
+    msg = "{} activated at {}".format(sensorKey, siteKey)
+    event = histoire(date, msg, "xdate", date)
+    gDict["log"].append(event)
+    shist = gDict["sites"][siteKey]["history"]
+    tev = histoire(date,"{} activated".format(sensorKey), "status", "on");
+    insert(tev, shist)
 
 def historian(gDict, date, **kwargs):
     if not kwargs:
@@ -816,6 +881,48 @@ def historian(gDict, date, **kwargs):
     siteId = None
     sensorId = None
     detectorId = None
+
+
+def getSenSite(gDict, sensorid, siteid, date, what):
+    sites = gDict["sites"]
+    sensors = gDict["sensors"]
+    siteKey = None
+    sensorKey = None
+    leSite = None
+    leSensor = None
+    for site in sites.keys():
+        sid = sites[site]["siteid"]
+        if sid.lower() == siteid:
+#            print "site", sid, " located"
+            siteKey = site
+            leSite = sites[site]
+            break
+            
+    for sensor in sensors.keys():
+        sid = sensors[sensor]["sensorid"]
+        if sid.lower() == sensorid:
+#            print "sensor", sid, " located"
+            sensorKey = sensor
+            leSensor = sensors[sensor]
+            break
+            
+    if sensorKey is None:
+        print "Invalid sensor: ", sensorid
+    if siteKey is None:
+        print "Invalid site: ", siteid
+
+    # We need to require that both site and sensor are active at the time
+    # point of attachement
+    siteDate = leSite["history"][0]["tst"]
+    sensorDate = leSensor["history"][0]["tst"]
+
+#    print "site   date: ", siteDate
+#    print "sensor date: ", sensorDate
+    if sensorDate < siteDate:
+        print "Causality violation while {}. Quiting. {} newer than {}".format(what, siteid, sensorid)
+        sys.exit()
+
+    return (siteKey, sensorKey)
 
 def do_attachSensorToSite(fields, gDict, args):
     """
@@ -829,26 +936,9 @@ def do_attachSensorToSite(fields, gDict, args):
     siteid = args[1].lower()
     date = args[2]
 
-    sites = gDict["sites"]
-    sensors = gDict["sensors"]
-    siteKey = None
-    sensorKey = None
-    for site in sites.keys():
-        sid = sites[site]["siteid"]
-        if sid.lower() == siteid:
-            print "site", sid, " located"
-            siteKey = site
-            
-    for sensor in sensors.keys():
-        sid = sensors[sensor]["sensorid"]
-        if sid.lower() == sensorid:
-            print "sensor", sid, " located"
-            sensorKey = sensor
-            
-    if sensorKey is None:
-        print "Invalid sensor: ", sensorid
-    if siteKey is None:
-        print "Invalid site: ", siteid
+    (siteKey, sensorKey) = getSenSite(gDict, sensorid, siteid, date,
+    "attaching")
+
     fdu = stime2utime(date)
     if "pairs" not in gDict:
         gDict["pairs"] = {}
@@ -858,21 +948,16 @@ def do_attachSensorToSite(fields, gDict, args):
     if tag not in pairs:
         pairs[tag] = []
     tev = histoire(date,"attach", "status", "active");
-#    entry = { "act": "attach", "date": date, "epoch": fdu, "timex":tev}
-#    pairs[tag].append(tev)
-
     insert(tev, pairs[tag])
 
-#    stamp = [ tev["tst"] , "attached to {}".format(siteKey)]
-#    gDict["sensors"][sensorKey]["history"].append(stamp)
+    tev = histoire(date,"attach to {}".format(siteid), "status", "active");
     insert(tev, gDict["sensors"][sensorKey]["history"])
-
-
-#   We don't add this history item to the detectors, otherwise their
-#   history becomes too long
-#    detectors = gDict["sensors"][sensorKey]["detectors"]
-#    for det in detectors.keys():
-#        detectors[det]["history"].append(tev)
+    msg = "{} installed at {}".format(sensorKey, siteKey)
+    event = histoire(date, msg, "xdate", date)
+    gDict["log"].append(event)
+    shist = gDict["sites"][siteKey]["history"]
+    tev = histoire(date,"{} attached".format(sensorKey), "status", "att");
+    insert(tev, shist)
 
 
 def insert(stamp, aList):
@@ -967,44 +1052,31 @@ def do_detachSensorFromSite(fields, gDict, args):
     siteid = args[1].lower()
     date = args[2]
 
-    sites = gDict["sites"]
-    sensors = gDict["sensors"]
-    siteKey = None
-    sensorKey = None
-    for site in sites.keys():
-        sid = sites[site]["siteid"]
-        if sid.lower() == siteid:
-            print "site", sid, " located"
-            siteKey = site
-            
-    for sensor in sensors.keys():
-        sid = sensors[sensor]["sensorid"]
-        if sid.lower() == sensorid:
-            print "sensor", sid, " located"
-            sensorKey = sensor
-            
-    if sensorKey is None:
-        print "Invalid sensor: ", sensorid
-    if siteKey is None:
-        print "Invalid site: ", siteid
+    (siteKey, sensorKey) = getSenSite(gDict, sensorid, siteid, date,
+                "detacching")
+
+
     fdu = stime2utime(date)
     if "pairs" not in gDict:
-        gDict["pairs"] = {}
+        print "Pair sensor/site is not present. Doing nothing"
+        sys.exit()
+#        gDict["pairs"] = {}
     pairs = gDict["pairs"]
     tag = "{}|{}".format(siteKey, sensorKey)
-    print "pairing: ", sensorid, siteid, date, fdu, tag
+    print "Detaching: ", sensorid, siteid, date, fdu, tag
     if tag not in pairs:
         pairs[tag] = []
     tev = histoire(date,"detach", "status", "off");
     insert(tev, pairs[tag])
     # modify the sensor's general history
-#    stamp = [ tev["tst"] , "detached from {}".format(siteKey)]
-#    gDict["sensors"][sensorKey]["history"].append(stamp)
     insert(tev, gDict["sensors"][sensorKey]["history"])
 
-#    detectors = gDict["sensors"][sensorKey]["detectors"]
-#    for det in detectors.keys():
-#        detectors[det]["history"].append(tev)
+    msg = "{} detached from {}".format(sensorKey, siteKey)
+    event = histoire(date, msg, "xdate", date)
+    gDict["log"].append(event)
+    shist = gDict["sites"][siteKey]["history"]
+    tev = histoire(date,"{} detached".format(sensorKey), "status", "kaput");
+    insert(tev, shist)
 
 
 #  End of the function definitions
