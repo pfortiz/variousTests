@@ -56,6 +56,8 @@ maintenant = ctime
 alora = str(datetime.datetime.now())
 dt = alora.split()
 laDate = int(dt[0].replace("-", ""))
+heute = time.strftime("%d/%m/%Y")
+#print alora, laDate, heute
 hms = dt[1].split(":")
 leTime = int(hms[0])/24.0 + float(hms[1])/1440. + float(hms[2])/86400;
 #print "date", dt[0], laDate, " time ", dt[1], " fod", leTime
@@ -170,16 +172,31 @@ info=on   indicates a perfectly working detector
 info=anything-else indicates the detector is acting up and it will be used
 to avoid providing data for that detector while its status is not back to 'on'"""
         },
-    "addMaintenance": {
-        "args":"<sensorID> ",
-        "short":"Interactive task. Add maintenance records to a sensor",
+    "deactivateSite": {
+        "args":"<siteID> ",
+        "short":"mark a site as decommissioned",
         "long":""" """
         },
-#    "showOperational": {
-#        "args":"<date> ",
-#        "short":"Show all operational sites/sensors at a given date",
-#        "long":""" """
-#        },
+    "addtoasset": {
+        "args":"flag|field|maintenance [siteid=xxx] [sensorid=yyy] [detector=zzz] value=vvv msg='mmm' date=DD/MM/YYYY",
+        "short":"adds information to assets at various levels",
+        "long":"""addtoasset allows to incorporate information to the dictionry at
+several levels. The operations allowed are:
+addtoasset a flag to either a site, a sensor or sensor's detector.
+           This operation affects the status of a device.
+           value=on indicates the asset is active, operational and collecting
+                meaningful data. 
+           value='whatever-else' will make data starting at that ponit not to
+                be considered 'suitable for analysis'
+addtoasset field: allow for the inclusion of fields omitted at the moment of
+           writing this software to any element. Date is ignored. If value
+           is a comma separated list of words, a list is entered in the
+           field.
+addtoasset maintenance. Like flag, except that the status of an asset is not
+           altered, but an item in the maintenance field of the asset is
+           added. value TBD as of Nov-30,2017
+"""
+        },
     "show": {
         "args": "<element> [@date]",
         "short":"Show a particular database element now or at the specified date",
@@ -203,8 +220,8 @@ uam show activePairs date      Show all active sensor/site pairs at DD/MM/YYYY
         "long":""" """
         },
     "getInputTemplate": {
-        "args":"<addsite|addsensor>",
-        "short": "Create a template (in stdout) to enter sensor(site) data from files",
+        "args":"<site|sensor>",
+        "short": "Create a template (in stdout) to enter sensor or site data from files",
         "long":""" """
         },
 #    "showSensorSite": {
@@ -223,8 +240,8 @@ helpOrder = [
     "detachSensorFromSite",
     "activateSensorInSite",
     "deactivateSensorInSite",
-    "addDetectorInformation",
-    "addMaintenance",
+    "deactivateSite",
+    "addtoasset",
     "show",
     "help",
 #    "showOperational",
@@ -237,13 +254,14 @@ helpOrder = [
 
 
 templateArgs = {
-    "addsite" : [
+    "site" : [
         "siteid", "address", "city", "country", "zip", "lon", "lat",
         "hag", "hasl", "firstdate", "operator", "sensorid"
         ],
-    "addsensor" : [
-        "sensorid", "provider",  "firstdate",
-        "serialnumber", "siteid", "nquantities", 
+    "sensor" : [
+        "sensorid", "provider",  "firstdate", "nrgsupply",
+        "freqmaintenance",
+        "serialnumber", "ndetectors", 
         ],
 }
 
@@ -277,12 +295,132 @@ arguments = {
     "deactivatesensorinsite" : [ "qucd" ],
     "detachsensorfromsite" : [ "qucd" ],
     "adddetectorinformation": [ "qucd" ],
+    "addtoasset": [ "qucd" ],
 #    "showsensorsite" : [ "qucd" ],
     "help" : [ "aiuta" ],
 }
 
 def stime2utime(stime):
     return time.mktime(datetime.datetime.strptime(stime, "%d/%m/%Y").timetuple())
+
+def do_addInfo(fields, gDict, args):
+    """
+    Function to add information to an asset
+    """
+    nargs = len(args)
+    if nargs == 0:
+        print actionsHelp["addtoasset"]["long"]
+        return
+    
+    (doThis, todo) = splitArgs(args)
+    showTime = todo[0]
+
+    if showTime == "flag":
+        fail = checkPresence(doThis, ["msg", "status", "date"],
+                    ["sensorid", "siteid", "pairid", "detid"])
+#        if ("sensorid" not in doThis) and ("siteid" not in doThis) and ("pairid" not in doThis) and ("detectorid" not in doThis):
+        if fail:
+            print "Usage: uam addtoasset flag sensorid=xxx msg='mmm' status=vvv date=DD/MM/YYY"
+            print "Usage: uam addtoasset flag siteid=xxx msg='mmm' status=vvv date=DD/MM/YYY"
+            print "Usage: uam addtoasset flag pairid=sensorid:siteid msg='mmm' status=vvv date=DD/MM/YYY"
+            print "Usage: uam addtoasset flag detid=sensorid:det msg='mmm' status=vvv date=DD/MM/YYY"
+            sys.exit()
+        if "sensorid" in doThis:
+            sensorId = doThis["sensorid"]
+            if sensorId not in gDict["sensors"]:
+                print sensorId, "is not an existing sensor. Quiting"
+                sys.exit()
+            history = gDict["sensors"][sensorId][history]
+            msg = "{} {}".format(sensorId, doThis["msg"])
+        elif "siteid" in doThis:
+            siteId = doThis["siteid"]
+            if siteId not in gDict["sites"]:
+                print siteId, "is not an existing site. Quiting"
+                sys.exit()
+            history = gDict["sites"][siteId]["history"]
+            msg = "{} {}".format(siteId, doThis["msg"])
+        elif "pairid" in doThis:
+            pass
+        elif "detid" in doThis:
+            siteId = doThis["siteid"]
+            if siteId not in gDict["sites"]:
+                print siteId, "is not an existing site. Quiting"
+                sys.exit()
+            site = gDict["sites"][siteId]
+            print site
+            site[doThis["fname"]] = doThis["fvalue"]
+            msg = "{} = {} added to {}".format(doThis["fname"], 
+                        doThis["fvalue"], siteId)
+            pass
+
+        event = histoire(doThis["date"], doThis["msg"], "status",
+                        doThis["status"])
+        insert(event, history)
+
+
+    elif showTime == "field":
+        fail = checkPresence(doThis, ["fname", "fvalue"],
+                    ["sensorid", "siteid"])
+#        print "Fail = ", fail
+#        fail = False
+#        if ("sensorid" not in doThis) and ("siteid" not in doThis):
+#            fail = True
+#        if ("fname" not in doThis ) or ("fvalue" not in doThis):
+#            fail = True
+
+        if fail:
+            print "Usage: uam addtoasset field sensorid=xxx fname='mmm' fvalue=vvv"
+            print "Usage: uam addtoasset field siteid=xxx fname='mmm' fvalue=vvv"
+            sys.exit()
+        if "sensorid" in doThis:
+            sensorId = doThis["sensorid"]
+            if sensorId not in gDict["sensors"]:
+                print sensorId, "is not an existing sensor. Quiting"
+                sys.exit()
+            sensor = gDict["sensors"][sensorId]
+            sensor[doThis["fname"]] = doThis["fvalue"]
+            msg = "{} = {} added to {}".format(doThis["fname"], 
+                        doThis["fvalue"], sensorId)
+        elif "siteid" in doThis:
+            siteId = doThis["siteid"]
+            if siteId not in gDict["sites"]:
+                print siteId, "is not an existing site. Quiting"
+                sys.exit()
+            site = gDict["sites"][siteId]
+            print site
+            site[doThis["fname"]] = doThis["fvalue"]
+            msg = "{} = {} added to {}".format(doThis["fname"], 
+                        doThis["fvalue"], siteId)
+        then = heute
+    elif showTime == "maintenance":
+        fail = checkPresence(doThis, ["sensorid", "msg", "value", "date"],
+                    ["sensorid"])
+        if fail:
+            print "Usage: uam addtoasset maintenance sensorid=xxx msg='mmm' value=vvv date=DD/MM/YYYY"
+            sys.exit()
+        pass
+    else:
+        print showTime, "is not a valid 'thing' to add to an asset"
+        sys.exit()
+    pass
+    event = histoire(then, msg, "xdate", then)
+    gDict["log"].append(event)
+
+def checkPresence(doit, mustHave, oneAtLeast):
+    fmh = False
+    for mh in mustHave:
+        if mh not in doit:
+#            print mh, "not located"
+            fmh = True
+    if fmh:
+        return True
+    foal = False
+    for mh in oneAtLeast:
+        if mh in doit:
+            foal = True
+    if foal == False:
+        return True
+    return False
 
 def do_showHelp(fields, gDict, args):
     """
@@ -406,6 +544,22 @@ def showHist(entry):
 #    print "  ", hrTime, action, status
     print msg
 
+def splitArgs(args):
+    doThis = {}
+    todo = []
+    for arg in args:
+        lcarg = arg.lower()
+        if "=" in lcarg:
+            lcparts = lcarg.split("=")
+            parts = arg.split("=")
+            doThis[lcparts[0]] = parts[1]
+            todo.append(lcparts[0])
+        else:
+            doThis[lcarg] = None
+            todo.append(lcarg)
+
+    return (doThis, todo)
+
 def do_showThings(fields, gDict, args):
     """
     Function to show any dictionary content
@@ -415,21 +569,8 @@ def do_showThings(fields, gDict, args):
         print actionsHelp["show"]["long"]
         return
     
-    doThis = {}
-    todo = []
-    for arg in args:
-        lcarg = arg.lower()
-        if "=" in lcarg:
-            parts = lcarg.split("=")
-            doThis[parts[0]] = parts[1]
-            todo.append(parts[0])
-        else:
-            doThis[lcarg] = None
-            todo.append(lcarg)
-
+    (doThis, todo) = splitArgs(args)
     showTime = todo[0]
-    if nargs > 1:
-        arg2 = args[1]
 #    dumpclean(gDict)
     iDate = maintenant
     if "date" in todo:
@@ -475,13 +616,15 @@ def do_showThings(fields, gDict, args):
     elif showTime == "sensor":
         if "listOfSensors" in gDict:
             sensors = gDict["listOfSensors"]
+            print "sensors list: ", sensors
             mysensor = doThis[showTime]
             if mysensor == "*":
                 for sensor in sensors:
                     showSensor(sensor, gDict, False, iDate)
             else:
                 for sensor in sensors:
-                    if sensor.lower() == mysensor:
+#                    if sensor.lower() == mysensor:
+                    if sensor == mysensor:
                         showSensor(sensor, gDict, True, iDate)
                         break
             
@@ -494,7 +637,7 @@ def do_showThings(fields, gDict, args):
                     showSite(site, gDict, iDate)
             else:
                 for site in sites:
-                    if site.lower() == mysite:
+                    if site == mysite:
                         showSite(site, gDict, iDate)
             
         pass
@@ -661,15 +804,21 @@ def do_createTemplate(fields, gDict, args):
     Function to create input templates for sensors and sites
     """
     kind = args.pop(0)
+    if kind != "sensor" and kind != "site":
+        print kind, " must be either sensor or site"
+        sys.exit()
+
     fields = templateArgs[kind]
 #    print "# template for ", kind
     examples = {
         "operator" : "id:xx|contact:xx|tel:xxxyyyyzzz|email:xxx@yyy",
         "provider" : "id:xx|contact:xx|tel:xxxyyyyzzz|email:xxx@yyy",
         "firstdate": "DD/MM/YYYY",
+        "nrgsupply": "solar|mains",
     }
     for f in fields:
-        if f == "nquantities":
+        if f == "ndetectors":
+            print "# add more detectors if necessary"
             for i in range(0,5):
                 print "measure=name:xxx|unit:UU|epsilon:x.xx|ucd:ZZ"
             break
@@ -1127,6 +1276,8 @@ functions["activatesensorinsite"] = do_activateSensorInSite;
 # The sensor/site entry is marked with  "status=off"
 functions["detachsensorfromsite"] = do_detachSensorFromSite;
 
+# Add information to several assets
+functions["addtoasset"] = do_addInfo;
 # All previous functions alter the dictionary and rewrite a new version.
 
 # The functions below do not alter the dictionary, they only examine its
