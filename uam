@@ -177,22 +177,22 @@ to avoid providing data for that detector while its status is not back to 'on'""
         "short":"mark a site as decommissioned",
         "long":""" """
         },
-    "addtoasset": {
+    "addinfo": {
         "args":"flag|field|maintenance [siteid=xxx] [sensorid=yyy] [detector=zzz] value=vvv msg='mmm' date=DD/MM/YYYY",
         "short":"adds information to assets at various levels",
-        "long":"""addtoasset allows to incorporate information to the dictionry at
+        "long":"""addinfo allows to incorporate information to the dictionry at
 several levels. The operations allowed are:
-addtoasset a flag to either a site, a sensor or sensor's detector.
+addinfo a flag to either a site, a sensor or sensor's detector.
            This operation affects the status of a device.
            value=on indicates the asset is active, operational and collecting
                 meaningful data. 
            value='whatever-else' will make data starting at that ponit not to
                 be considered 'suitable for analysis'
-addtoasset field: allow for the inclusion of fields omitted at the moment of
+addinfo field: allow for the inclusion of fields omitted at the moment of
            writing this software to any element. Date is ignored. If value
            is a comma separated list of words, a list is entered in the
            field.
-addtoasset maintenance. Like flag, except that the status of an asset is not
+addinfo maintenance. Like flag, except that the status of an asset is not
            altered, but an item in the maintenance field of the asset is
            added. value TBD as of Nov-30,2017
 """
@@ -241,7 +241,7 @@ helpOrder = [
     "activateSensorInSite",
     "deactivateSensorInSite",
     "deactivateSite",
-    "addtoasset",
+    "addinfo",
     "show",
     "help",
 #    "showOperational",
@@ -295,7 +295,7 @@ arguments = {
     "deactivatesensorinsite" : [ "qucd" ],
     "detachsensorfromsite" : [ "qucd" ],
     "adddetectorinformation": [ "qucd" ],
-    "addtoasset": [ "qucd" ],
+    "addinfo": [ "qucd" ],
 #    "showsensorsite" : [ "qucd" ],
     "help" : [ "aiuta" ],
 }
@@ -309,28 +309,30 @@ def do_addInfo(fields, gDict, args):
     """
     nargs = len(args)
     if nargs == 0:
-        print actionsHelp["addtoasset"]["long"]
+        print actionsHelp["addinfo"]["long"]
         return
     
     (doThis, todo) = splitArgs(args)
-    showTime = todo[0]
+    theInfo = todo[0]
 
-    if showTime == "flag":
+    if theInfo == "flag":
         fail = checkPresence(doThis, ["msg", "status", "date"],
                     ["sensorid", "siteid", "pairid", "detid"])
 #        if ("sensorid" not in doThis) and ("siteid" not in doThis) and ("pairid" not in doThis) and ("detectorid" not in doThis):
         if fail:
-            print "Usage: uam addtoasset flag sensorid=xxx msg='mmm' status=vvv date=DD/MM/YYY"
-            print "Usage: uam addtoasset flag siteid=xxx msg='mmm' status=vvv date=DD/MM/YYY"
-            print "Usage: uam addtoasset flag pairid=sensorid:siteid msg='mmm' status=vvv date=DD/MM/YYY"
-            print "Usage: uam addtoasset flag detid=sensorid:det msg='mmm' status=vvv date=DD/MM/YYY"
+            print "Usage: uam addinfo flag sensorid=xxx msg='mmm' status=vvv date=DD/MM/YYY"
+            print "Usage: uam addinfo flag siteid=xxx msg='mmm' status=vvv date=DD/MM/YYY"
+            print "Usage: uam addinfo flag pairid=sensorid:siteid msg='mmm' status=vvv date=DD/MM/YYY"
+            print "Usage: uam addinfo flag detid=sensorid:det msg='mmm' status=vvv date=DD/MM/YYY"
             sys.exit()
         if "sensorid" in doThis:
             sensorId = doThis["sensorid"]
             if sensorId not in gDict["sensors"]:
                 print sensorId, "is not an existing sensor. Quiting"
                 sys.exit()
-            history = gDict["sensors"][sensorId][history]
+            sensor = gDict["sensors"][sensorId]
+            print sensor
+            history = gDict["sensors"][sensorId]["history"]
             msg = "{} {}".format(sensorId, doThis["msg"])
         elif "siteid" in doThis:
             siteId = doThis["siteid"]
@@ -340,25 +342,48 @@ def do_addInfo(fields, gDict, args):
             history = gDict["sites"][siteId]["history"]
             msg = "{} {}".format(siteId, doThis["msg"])
         elif "pairid" in doThis:
+            pairId = doThis["pairid"]
+            (sensorId, siteId) = pairId.split(',')
+            lePair = "{}|{}".format(siteId, sensorId)
+            riaPel = "{}|{}".format(sensorId, siteId)
+            pairs = gDict["pairs"]
+            if lePair in pairs:
+                thePair = lePair
+            elif riaPel in pairs:
+                thePair = riaPel
+            else:
+                print "invalid pair ({} or {}), sorry, can't continue.".format(lePair, riaPel)
+                sys.exit()
+            print pairId, thePair
+            history = gDict["pairs"][thePair]
+            msg = "{} {}".format(thePair, doThis["msg"])
+#            sys.exit()
             pass
         elif "detid" in doThis:
-            siteId = doThis["siteid"]
-            if siteId not in gDict["sites"]:
-                print siteId, "is not an existing site. Quiting"
+            detPair = doThis["detid"]
+            (sensorId, detId) = detPair.split(',')
+            if sensorId not in gDict["sensors"]:
+                print sensorId, "is not an existing sensor. Quiting"
                 sys.exit()
-            site = gDict["sites"][siteId]
-            print site
-            site[doThis["fname"]] = doThis["fvalue"]
-            msg = "{} = {} added to {}".format(doThis["fname"], 
-                        doThis["fvalue"], siteId)
+            sensor = gDict["sensors"][sensorId]
+            lod = sensor["listOfDetectors"]
+            if detId not in lod:
+                print "{} is not a detected quantity in {}".format(detId, sensorId)
+                sys.exit()
+            tdet = sensor["detectors"][detId]
+            print "Detector", detId, " at ", sensorId, ":", tdet
+            history = tdet["history"]
+            msg = "{}.{} {}".format(sensorId, detId, doThis["msg"])
+#            sys.exit()
             pass
 
         event = histoire(doThis["date"], doThis["msg"], "status",
                         doThis["status"])
         insert(event, history)
+        then = heute
 
 
-    elif showTime == "field":
+    elif theInfo == "field":
         fail = checkPresence(doThis, ["fname", "fvalue"],
                     ["sensorid", "siteid"])
 #        print "Fail = ", fail
@@ -369,8 +394,8 @@ def do_addInfo(fields, gDict, args):
 #            fail = True
 
         if fail:
-            print "Usage: uam addtoasset field sensorid=xxx fname='mmm' fvalue=vvv"
-            print "Usage: uam addtoasset field siteid=xxx fname='mmm' fvalue=vvv"
+            print "Usage: uam addinfo field sensorid=xxx fname='mmm' fvalue=vvv"
+            print "Usage: uam addinfo field siteid=xxx fname='mmm' fvalue=vvv"
             sys.exit()
         if "sensorid" in doThis:
             sensorId = doThis["sensorid"]
@@ -392,15 +417,42 @@ def do_addInfo(fields, gDict, args):
             msg = "{} = {} added to {}".format(doThis["fname"], 
                         doThis["fvalue"], siteId)
         then = heute
-    elif showTime == "maintenance":
+    elif theInfo == "maintenance":
         fail = checkPresence(doThis, ["sensorid", "msg", "value", "date"],
                     ["sensorid"])
         if fail:
-            print "Usage: uam addtoasset maintenance sensorid=xxx msg='mmm' value=vvv date=DD/MM/YYYY"
+            print "Usage: uam addinfo maintenance sensorid=xxx msg='mmm' value=vvv date=DD/MM/YYYY"
             sys.exit()
+        
+        sys.exit()
+        sensorId = doThis["sensorid"]
+        if sensorId not in gDict["sensors"]:
+            print sensorId, "is not an existing sensor. Quiting"
+            sys.exit()
+        sensor = gDict["sensors"][sensorId]
+        sensor[doThis["fname"]] = doThis["fvalue"]
+        msg = "{} = {} added to {}".format(doThis["fname"], 
+                        doThis["fvalue"], sensorId)
+        then = heute
+        msg = doThis["msg"]
+        event = histoire(doThis["date"], doThis["msg"], "xdate",
+                        doThis["date"])
+        insert(event, history)
+        pass
+    elif theInfo == "log":
+        fail = checkPresence(doThis, ["msg", "date"], ["date"])
+        if fail:
+            print "Usage: uam addinfo log msg='mmm' date=DD/MM/YYYY"
+            sys.exit()
+        then = heute
+        msg = doThis["msg"]
+        event = histoire(doThis["date"], doThis["msg"], "xdate",
+                        doThis["date"])
+        insert(event, gDict["log"])
+
         pass
     else:
-        print showTime, "is not a valid 'thing' to add to an asset"
+        print theInfo, "is not a valid 'thing' to add to an asset"
         sys.exit()
     pass
     event = histoire(then, msg, "xdate", then)
@@ -459,25 +511,43 @@ uam showHelp <action>
     pass
     sys.exit()
 
+def liveAt(history, limit):
+    if limit is None:
+        return True
+    stt = False
+    for h in history:
+        if h["tst"] > limit:
+            return stt
+#        print h["tst"], limit, h["status"]
+        if h["status"] == "on":
+            stt = True
+        else:
+            stt = False
+    return stt
 
 def showSite(site, gDict, limitUstamp):
-    firstUs = gDict["sites"][site]["epoch.f"]
-    if firstUs > limitUstamp:
+    if not liveAt(gDict["sites"][site]["history"], limitUstamp):
+        print site, "not active"
         return
+
     print "Data for site: ", site
 #    print "date comparison: ", firstUs, limitUstamp
     for k in sorted(gDict["sites"][site].keys()):
         if k == "history":
             print " {}.{}".format(site, k)
             hist = gDict["sites"][site][k]
-            showHist({"act":"Action", "status":"Status"})
+            showHist({"act":"Action", "status":"Status"}, None)
             for he in hist:
-                showHist(he)
+                showHist(he, limitUstamp)
         else:
             print " {}.{}= {}".format(site, k, gDict["sites"][site][k])
 
 def showSensor(sensor, gDict, showH, limitUstamp):
     leSensor = gDict["sensors"][sensor]
+    if not liveAt(leSensor["history"], limitUstamp):
+        print sensor, "not active"
+        return
+    # date detection should occur here
     print "Data for sensor: ", sensor 
     for k in sorted(leSensor.keys()): # gDict["sites"][site].keys()):
         if "detectors" in k:
@@ -497,9 +567,9 @@ def showSensor(sensor, gDict, showH, limitUstamp):
         elif k == "history" and showH == True:
             hist = leSensor[k]
             print " {}.{}:".format(sensor, k)
-            showHist({"act":"Action", "status":"Status"})
+            showHist({"act":"Action", "status":"Status"}, None)
             for he in hist:
-                showHist(he)
+                showHist(he, limitUstamp)
         elif k == "history" and showH == False:
             print " {}.{}:".format(sensor, k)
         else:
@@ -518,20 +588,28 @@ def showSensor(sensor, gDict, showH, limitUstamp):
             for h in  qtty['history']:
                 insert(h, chist)
             print sensor, ms, "history"
-            showHist({"act":"Action", "status":"Status"})
+            showHist({"act":"Action", "status":"Status"}, None)
             for ch in chist:
-                showHist(ch)
+                showHist(ch, limitUstamp)
 
-def showHist(entry):
+def showHist(entry, limit):
     """
     method to show history items
     """
     if "tst" in entry:
-        if entry["tst"] == 32503680000:
+        etime = entry["tst"]
+        if limit is None:
+            mrk = ""
+        elif etime < limit:
+            mrk = "-"
+        else:
+            mrk = "+"
+        if etime == 32503680000:
             return
-        hrTime = datetime.datetime.fromtimestamp( int(entry["tst"])).strftime('%Y-%m-%d')
+        hrTime = datetime.datetime.fromtimestamp( etime).strftime('%Y-%m-%d')
     else:
         hrTime = "Date      "
+        mrk = ""
     if "status" in entry:
         status = entry["status"]
     else:
@@ -540,7 +618,7 @@ def showHist(entry):
         action = entry["act"]
     else:
         action = ""
-    msg = "  {:12s} {:25s} {:10s}".format(hrTime, action, status)
+    msg = "{}  {:12s} {:25s} {:10s}".format(mrk, hrTime, action, status)
 #    print "  ", hrTime, action, status
     print msg
 
@@ -572,7 +650,9 @@ def do_showThings(fields, gDict, args):
     (doThis, todo) = splitArgs(args)
     showTime = todo[0]
 #    dumpclean(gDict)
-    iDate = maintenant
+    iDate = None
+    y3k   = stime2utime("10/01/3000")
+#    print "maintenant: ", maintenant
     if "date" in todo:
         iDate = doThis["date"]
         iDate = stime2utime(doThis["date"])
@@ -609,9 +689,9 @@ def do_showThings(fields, gDict, args):
     #        print "List of pairs: ", pairs
             for pair in pairs.keys():
                 print pair #, pairs[pair]
-                showHist({"act":"Action", "status":"Status"})
+                showHist({"act":"Action", "status":"Status"}, None)
                 for entry in pairs[pair]:
-                    showHist(entry)
+                    showHist(entry, iDate)
 
     elif showTime == "sensor":
         if "listOfSensors" in gDict:
@@ -669,11 +749,16 @@ def do_showThings(fields, gDict, args):
     elif showTime == "pair":
         if "pairs" in gDict:
             pairs = gDict["pairs"]
+            mypair = doThis[showTime]
+            if mypair == "*":
+                pass
+            else:
+                pass
             for pair in sorted(pairs.keys()):
                 print "Pair ", pair
-                showHist({"act":"Action", "status":"Status"})
+                showHist({"act":"Action", "status":"Status"}, None)
                 for hist in pairs[pair]:
-                    showHist(hist)
+                    showHist(hist, iDate)
     else:
         print "unrecognised operation: ", showTime
 
@@ -1277,7 +1362,7 @@ functions["activatesensorinsite"] = do_activateSensorInSite;
 functions["detachsensorfromsite"] = do_detachSensorFromSite;
 
 # Add information to several assets
-functions["addtoasset"] = do_addInfo;
+functions["addinfo"] = do_addInfo;
 # All previous functions alter the dictionary and rewrite a new version.
 
 # The functions below do not alter the dictionary, they only examine its
