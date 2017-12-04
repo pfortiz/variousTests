@@ -525,72 +525,93 @@ def liveAt(history, limit):
             stt = False
     return stt
 
-def showSite(site, gDict, limitUstamp):
+def showSite(site, gDict, limitUstamp, hDate, activity):
     if not liveAt(gDict["sites"][site]["history"], limitUstamp):
         print site, "not active"
         return
 
-    print "Data for site: ", site
 #    print "date comparison: ", firstUs, limitUstamp
-    for k in sorted(gDict["sites"][site].keys()):
-        if k == "history":
-            print " {}.{}".format(site, k)
-            hist = gDict["sites"][site][k]
-            showHist({"act":"Action", "status":"Status"}, None)
-            for he in hist:
-                showHist(he, limitUstamp)
-        else:
-            print " {}.{}= {}".format(site, k, gDict["sites"][site][k])
+    if activity:
+        print "activity for site: ", site
+        k = "history"
+        print " {}.{}".format(site, k)
+        hist = gDict["sites"][site][k]
+        showHist({"act":"Action", "status":"Status"}, None)
+        for he in hist:
+            showHist(he, limitUstamp)
+    else:
+        print "Data for site: ", site
+        for k in sorted(gDict["sites"][site].keys()):
+            if k == "history":
+                print " {}.{}".format(site, k)
+                hist = gDict["sites"][site][k]
+                showHist({"act":"Action", "status":"Status"}, None)
+                for he in hist:
+                    showHist(he, limitUstamp)
+            else:
+                print " {}.{}= {}".format(site, k, gDict["sites"][site][k])
 
-def showSensor(sensor, gDict, showH, limitUstamp):
+def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
     leSensor = gDict["sensors"][sensor]
     if not liveAt(leSensor["history"], limitUstamp):
         print sensor, "not active"
         return
     # date detection should occur here
-    print "Data for sensor: ", sensor 
-    for k in sorted(leSensor.keys()): # gDict["sites"][site].keys()):
-        if "detectors" in k:
-            continue
-        if k == "provider":
-#            print leSensor[k]
-            p = sorted(leSensor[k].keys())
-            for e in p:
-                f = leSensor[k][e]
-                print " {}.{}.{} = {}".format(sensor, k, e, f)
-            pass
-        elif k == "listOfDetectors":
-            dets = []
-            for d in leSensor[k]:
-                dets.append(str(d))
-            print " {}.{}= {}".format(sensor, k, dets)
-        elif k == "history" and showH == True:
-            hist = leSensor[k]
-            print " {}.{}:".format(sensor, k)
-            showHist({"act":"Action", "status":"Status"}, None)
-            for he in hist:
-                showHist(he, limitUstamp)
-        elif k == "history" and showH == False:
-            print " {}.{}:".format(sensor, k)
-        else:
-            print " {}.{}= {}".format(sensor, k, leSensor[k])
-
-    if showH == False:
-        return
-    shist = leSensor["history"]
-    chist = shist
-    print sensor,  "detectors:"
-    for ms in leSensor["listOfDetectors"]:
-        qtty = leSensor["detectors"][ms]
-        print sensor, ms, qtty['unit'], qtty['ucd']
-
-        if len(qtty['history']) > 0:
-            for h in  qtty['history']:
-                insert(h, chist)
-            print sensor, ms, "history"
-            showHist({"act":"Action", "status":"Status"}, None)
-            for ch in chist:
-                showHist(ch, limitUstamp)
+    if activity:
+        k = "history"
+        hist = leSensor[k]
+        print " {}.{}:".format(sensor, k)
+        showHist({"act":"Action", "status":"Status"}, None)
+        for he in hist:
+            showHist(he, limitUstamp)
+        pass
+    else:
+        print "Data for sensor: ", sensor 
+        for k in sorted(leSensor.keys()): # gDict["sites"][site].keys()):
+            if "detectors" in k:
+                continue
+            if k == "provider":
+    #            print leSensor[k]
+                p = sorted(leSensor[k].keys())
+                for e in p:
+                    f = leSensor[k][e]
+                    print " {}.{}.{} = {}".format(sensor, k, e, f)
+                pass
+            elif k == "listOfDetectors":
+                dets = []
+                for d in leSensor[k]:
+                    dets.append(str(d))
+                print " {}.{}= {}".format(sensor, k, dets)
+            elif k == "history" and showH == True:
+                hist = leSensor[k]
+                print " {}.{}:".format(sensor, k)
+                showHist({"act":"Action", "status":"Status"}, None)
+                for he in hist:
+                    showHist(he, limitUstamp)
+            elif k == "history" and showH == False:
+                print " {}.{}:".format(sensor, k)
+            else:
+                print " {}.{}= {}".format(sensor, k, leSensor[k])
+    
+        if showH == False:
+            return
+        shist = leSensor["history"]
+        print sensor,  "detectors:"
+        for ms in leSensor["listOfDetectors"]:
+            qtty = leSensor["detectors"][ms]
+            print sensor, ms, qtty['unit'], qtty['ucd']
+    
+            if len(qtty['history']) > 0:
+#                chist = shist
+                chist = []
+                for h in shist:
+                    chist.append(h)
+                for h in  qtty['history']:
+                    insert(h, chist)
+                print sensor, ms, "history"
+                showHist({"act":"Action", "status":"Status"}, None)
+                for ch in chist:
+                    showHist(ch, limitUstamp)
 
 def showHist(entry, limit):
     """
@@ -598,8 +619,9 @@ def showHist(entry, limit):
     """
     if "tst" in entry:
         etime = entry["tst"]
+        tag = entry["lgt"]
         if limit is None:
-            mrk = ""
+            mrk = " "
         elif etime < limit:
             mrk = "-"
         else:
@@ -609,16 +631,22 @@ def showHist(entry, limit):
         hrTime = datetime.datetime.fromtimestamp( etime).strftime('%Y-%m-%d')
     else:
         hrTime = "Date      "
-        mrk = ""
+        mrk = " "
     if "status" in entry:
         status = entry["status"]
     else:
         status = ""
+
+    if "lgt" in entry:
+        lgt = "{:.6f}".format(float(entry["lgt"]))
+    else:
+        lgt = ""
+
     if "act" in entry:
         action = entry["act"]
     else:
         action = ""
-    msg = "{}  {:12s} {:25s} {:10s}".format(mrk, hrTime, action, status)
+    msg = "{}  {:12s} {:25s} {:10s} {}".format(mrk, hrTime, action, status, lgt)
 #    print "  ", hrTime, action, status
     print msg
 
@@ -651,11 +679,15 @@ def do_showThings(fields, gDict, args):
     showTime = todo[0]
 #    dumpclean(gDict)
     iDate = None
+    hDate = None
+    activity = False
     y3k   = stime2utime("10/01/3000")
 #    print "maintenant: ", maintenant
     if "date" in todo:
-        iDate = doThis["date"]
+        hDate = doThis["date"]
         iDate = stime2utime(doThis["date"])
+    if "activity" in todo:
+        activity = True
 
     if showTime == "dictionary":
         dicFile = doThis[showTime]
@@ -674,24 +706,26 @@ def do_showThings(fields, gDict, args):
 
         if "listOfSites" in gDict:
             sites = gDict["listOfSites"]
-            print "List of sites: ", sites
+            print "\nList of sites: ", sites
             for site in sites:
-                showSite(site, gDict, iDate)
+                showSite(site, gDict, iDate, hDate, activity)
             
         if "listOfSensors" in gDict:
             sensors = gDict["listOfSensors"]
-            print "List of sensors: ", sensors
+            print "\nList of sensors: ", sensors
             for sensor in sensors:
-                showSensor(sensor, gDict, False, iDate)
+                showSensor(sensor, gDict, False, iDate, hDate, activity)
     
         if "pairs" in gDict:
             pairs = gDict["pairs"]
-    #        print "List of pairs: ", pairs
-            for pair in pairs.keys():
-                print pair #, pairs[pair]
-                showHist({"act":"Action", "status":"Status"}, None)
-                for entry in pairs[pair]:
-                    showHist(entry, iDate)
+            print "\nList of pairs: ", pairs.keys()
+            for pair in sorted(pairs.keys()):
+                showPair(pair, gDict, iDate, hDate)
+#            for pair in pairs.keys():
+#                print pair #, pairs[pair]
+#                showHist({"act":"Action", "status":"Status"}, None)
+#                for entry in pairs[pair]:
+#                    showHist(entry, iDate)
 
     elif showTime == "sensor":
         if "listOfSensors" in gDict:
@@ -700,12 +734,12 @@ def do_showThings(fields, gDict, args):
             mysensor = doThis[showTime]
             if mysensor == "*":
                 for sensor in sensors:
-                    showSensor(sensor, gDict, False, iDate)
+                    showSensor(sensor, gDict, False, iDate, hDate, activity)
             else:
                 for sensor in sensors:
 #                    if sensor.lower() == mysensor:
                     if sensor == mysensor:
-                        showSensor(sensor, gDict, True, iDate)
+                        showSensor(sensor, gDict, True, iDate, hDate, activity)
                         break
             
     elif showTime == "site":
@@ -714,11 +748,11 @@ def do_showThings(fields, gDict, args):
             mysite = doThis[showTime]
             if mysite == "*":
                 for site in sites:
-                    showSite(site, gDict, iDate)
+                    showSite(site, gDict, iDate, hDate, activity)
             else:
                 for site in sites:
                     if site == mysite:
-                        showSite(site, gDict, iDate)
+                        showSite(site, gDict, iDate, hDate, activity)
             
         pass
 
@@ -746,23 +780,166 @@ def do_showThings(fields, gDict, args):
                 print hrTime, log["act"], "on", log["xdate"]
         pass
 
+    elif showTime == "detector":
+        # we show information for a single detector in the form MOT720,TEMP
+        # ie, 
+        # for sensorID,detectorID or
+        # for sensorID,*  or
+        # for *,detectorID or 
+        # for *,*
+        mydet = doThis[showTime]
+        (sensorId, detectorId) = mydet.split(",")
+        if iDate is None:
+            print "Info for {} ".format( mydet)
+        else:
+            print "Status for {} on {}".format( mydet, hDate)
+        sensors = gDict["sensors"]
+        if sensorId == "*":
+            if detectorId == "*":
+                for sid in sensors.keys():
+                    dets = sensors[sid]["detectors"]
+                    for det in dets.keys():
+                        showDetector(sid,det, gDict, iDate, hDate, activity)
+            else:
+                for sid in sensors.keys():
+                    dets = sensors[sid]["detectors"]
+#                    print dets
+                    if detectorId not in dets:
+                        print "Beep... {} not a valid detector".format(detectorId)
+                    showDetector(sid,detectorId, gDict, iDate, hDate, activity)
+                pass
+        else:
+            if sensorId not in sensors:
+                print "Beep... {} not a valid sensor".format(sensorId)
+                sys.exit
+            if detectorId == "*":
+                sid = sensors[sensorId]
+                dets = sid["detectors"]
+#                print dets
+                for det in dets.keys():
+                    showDetector(sensorId,det, gDict, iDate, hDate, activity)
+            else:
+                dets = sensors[sensorId]["detectors"]
+#               print dets
+                if detectorId not in dets:
+                    print "Beep... {} not a valid detector".format(detectorId)
+                showDetector(sensorId,detectorId, gDict, iDate, hDate, activity)
+                pass
+        pass
     elif showTime == "pair":
         if "pairs" in gDict:
             pairs = gDict["pairs"]
             mypair = doThis[showTime]
             if mypair == "*":
+                for pair in sorted(pairs.keys()):
+                    showPair(pair, gDict, iDate, hDate)
                 pass
             else:
+                for pair in sorted(pairs.keys()):
+                    if mypair.lower() == pair.lower():
+                        showPair(pair, gDict, iDate, hDate)
                 pass
-            for pair in sorted(pairs.keys()):
-                print "Pair ", pair
-                showHist({"act":"Action", "status":"Status"}, None)
-                for hist in pairs[pair]:
-                    showHist(hist, iDate)
+
+    elif showTime == "activity":
+        # show the active period for an asset or all assets if no argument
+        # is given
+        pass
+    elif showTime == "operational":
+        # show those assets which are operational either "today" or at the
+        # specified date
+        if iDate is None:
+            hDate = heute
+            iDate = stime2utime(hDate)
+        if "pairs" not in gDict:
+            print "#Nothing to do. Sorry"
+            sys.exit()
+
+        pairs = gDict["pairs"]
+        mypair = doThis[showTime]
+        for pair in sorted(pairs.keys()):
+            tev = histoire(hDate,"test", "status", "undef");
+            status = getStatus(tev, pairs[pair])
+            (siteId, sensorId) = pair.split("|")
+            leSite = gDict["sites"][siteId]
+            leSensor = gDict["sensors"][sensorId]
+            siteStatus = getStatus(tev, leSite["history"])
+            shist = leSensor["history"]
+            sensorStatus = getStatus(tev, shist)
+            if (status != "on") or (siteStatus != "on") or (sensorStatus != "on"):
+                continue
+            longi = gDict["sites"][siteId]["lon"]
+            lati  = gDict["sites"][siteId]["lat"]
+            dets = leSensor["detectors"]
+            d3 = []
+            for detname in dets:
+                det = dets[detname]
+                chist = []
+                for sh in shist:
+                    chist.append(sh)
+                deth = det["history"]
+                for dh in deth:
+                    insert(dh, chist)
+                detStatus = getStatus(tev, chist)
+                print det["name"], detStatus
+                if detStatus != "on":
+                    continue
+                d3.append("{}:{}:{}".format(det["name"], det["unit"],
+                                            det["ucd"]) )
+            print "{}:{},{},{},{},{},{},{}".format(siteId,sensorId,
+            lati,longi, status, siteStatus, sensorStatus, "|".join(d3))
+            operational(pair, gDict, iDate, hDate)
+        pass
     else:
         print "unrecognised operation: ", showTime
 
     sys.exit()
+
+def operational(pair, gDict, iDate, hDate):
+    (siteId, sensorId) = pair.split("|")
+    pass
+
+
+def showDetector(sensorId,detectorId, gDict, limitUstamp, hDate, activity):
+    det = gDict["sensors"][sensorId]["detectors"][detectorId]
+    status = ""
+
+    unit = "[{}]".format(det["unit"])
+#    error = "{:.2f}".format(float(det["epsilon"]))
+    error = det["epsilon"]
+    dpair = "{}.{}".format(sensorId, detectorId)
+    shist = gDict["sensors"][sensorId]["history"]
+    chist = []
+    for h in shist:
+        chist.append(h)
+    for h in  det['history']:
+        insert(h, chist)
+    if limitUstamp is None:
+        print "{:15s} {:8s} +/- {:8s} {:8s} {:8s}".format(dpair, unit,
+                error, det["ucd"], status)
+        print "{}'s history:".format(dpair)
+#        print sensor, ms, "history"
+        showHist({"act":"Action", "status":"Status"}, None)
+        for ch in chist:
+            showHist(ch, limitUstamp)
+        pass
+    else:
+        tev = histoire(hDate,"test", "status", "undef");
+        status = getStatus(tev, chist)
+        print "{:15s} {:8s} +/- {:8s} {:8s} {:8s}".format(dpair, unit,
+                error, det["ucd"], status)
+
+def showPair(pair, gDict, limitUstamp, hDate):
+    lePair = gDict["pairs"][pair]
+#    print lePair
+#    return
+    if not liveAt(lePair, limitUstamp):
+        print pair, "not active"
+        return
+    print "Pair ", pair #, lePair, limitUstamp
+    showHist({"act":"Action", "status":"Status"}, None)
+    pairs = gDict["pairs"]
+    for hist in lePair:
+        showHist(hist, limitUstamp)
 
 def dumpclean(obj):
     if type(obj) == dict:
@@ -1268,9 +1445,9 @@ def getStatus(eve, things):
         for i in range(0,top):
             thing = things[i]
             hrTime = datetime.datetime.fromtimestamp( int(thing["tst"])).strftime('%Y-%m-%d')
-            print thing["act"], hrTime
+#            print thing["act"], hrTime
             if nTime >= things[i]["tst"] and nTime < things[i+1]["tst"]:
-                print "insertion point: " , i, "status: ", things[i]["status"]
+#                print "insertion point: " , i, "status: ", things[i]["status"]
                 return things[i]["status"]
 #                break
 
