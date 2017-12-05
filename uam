@@ -177,6 +177,13 @@ to avoid providing data for that detector while its status is not back to 'on'""
         "short":"mark a site as decommissioned",
         "long":""" """
         },
+    "rminfo": {
+        "args":"history-tag",
+        "short":"removes the entry pointed by 'history-tag' from the corresponding history entry",
+        "long":"""Removes a history entry with the label 'history-tag'. 
+'history-tag' shall be obtaining from the last column found when a history
+is shown by the use of the 'show' option."""
+        },
     "addinfo": {
         "args":"flag|field|maintenance [siteid=xxx] [sensorid=yyy] [detector=zzz] value=vvv msg='mmm' date=DD/MM/YYYY",
         "short":"adds information to assets at various levels",
@@ -296,12 +303,101 @@ arguments = {
     "detachsensorfromsite" : [ "qucd" ],
     "adddetectorinformation": [ "qucd" ],
     "addinfo": [ "qucd" ],
+    "rminfo": [ "qucd" ],
 #    "showsensorsite" : [ "qucd" ],
     "help" : [ "aiuta" ],
 }
 
 def stime2utime(stime):
     return time.mktime(datetime.datetime.strptime(stime, "%d/%m/%Y").timetuple())
+
+def histKiller(obj, tag):
+    qtag = "{:.6f}".format(float(tag))
+#    print "HK"
+    if type(obj) == dict:
+        for k, v in obj.items():
+            if hasattr(v, '__iter__'):
+                if k == "history":
+#                    print "IT:", k, v
+                    i = 0
+                    for h in v:
+                        rtag = "{:.6f}".format(h["lgt"])
+                        if rtag == qtag:
+                            print "Eureka", rtag, qtag
+                            del v[i]
+                        i += 1
+
+                else:
+                    histKiller(v, tag)
+#            else:
+#                if k == "lgt":
+#                    if qtag == tag:
+#                        print obj
+#                        print '%s :-: %s vs %s' % (k, qtag, tag)
+    elif type(obj) == list:
+#        print "OL", obj
+        for v in obj:
+            if obj == "history":
+                print "IH:", obj
+            if hasattr(v, '__iter__'):
+                histKiller(v, tag)
+            else:
+                if v == "tst":
+                    print "V: ", v
+    else:
+        if obj == "tst":
+            print "O", obj
+
+def killHist(gDict, tag):
+    """
+        Locate items in history and remove them from the dictionary
+    """
+    for s in gDict["sites"].keys():
+        locateAndRemove(gDict["sites"][s]["history"], tag)
+
+    for s in gDict["sensors"].keys():
+        locateAndRemove(gDict["sensors"][s]["history"], tag)
+        for d in gDict["sensors"][s]["detectors"].keys():
+            gDict["sensors"][s]["detectors"][d]["history"] = locateAndRemove(gDict["sensors"][s]["detectors"][d]["history"], tag)
+#            i = 0
+#            for h in dik["sensors"][s]["detectors"][d]["history"]:
+#                rtag = "{:.6f}".format(h["lgt"])
+#                if rtag == tag:
+#                    print "Eureka", s, d, rtag, tag
+#                    del dik["sensors"][s]["detectors"][d]["history"][i]
+#                i += 1
+
+
+def locateAndRemove(hlist, tag):
+    i = 0
+    for h in hlist:
+        rtag = "{:.6f}".format(h["lgt"])
+        if rtag == tag:
+            print "HL0: ", hlist
+            print "Eureka", rtag, tag
+            del hlist[i]
+            print "HL1: ", hlist
+        i += 1
+    return hlist
+
+def do_rmInfo(fields, gDict, args):
+    """
+    Function to remove an entry from any of the history lists
+    """
+    nargs = len(args)
+    if nargs == 0:
+        print actionsHelp["rminfo"]["long"]
+        sys.exit()
+    (doThis, todo) = splitArgs(args)
+    theTag = todo[0]
+    print "Trying to remove: ", theTag
+    odict = dict(gDict)
+#    histKiller(gDict, theTag)
+    killHist(gDict, theTag)
+    print "OD:", odict
+    print "GD:", gDict
+    sys.exit()      ## temporary
+    pass
 
 def do_addInfo(fields, gDict, args):
     """
@@ -310,20 +406,22 @@ def do_addInfo(fields, gDict, args):
     nargs = len(args)
     if nargs == 0:
         print actionsHelp["addinfo"]["long"]
-        return
+        sys.exit()
     
     (doThis, todo) = splitArgs(args)
     theInfo = todo[0]
+    dateForm = "date=DD/MM/YYY[Thh:mm:ss.s]"
 
     if theInfo == "flag":
+        prefix = "Usage: uam addinfo flag"
         fail = checkPresence(doThis, ["msg", "status", "date"],
                     ["sensorid", "siteid", "pairid", "detid"])
 #        if ("sensorid" not in doThis) and ("siteid" not in doThis) and ("pairid" not in doThis) and ("detectorid" not in doThis):
         if fail:
-            print "Usage: uam addinfo flag sensorid=xxx msg='mmm' status=vvv date=DD/MM/YYY"
-            print "Usage: uam addinfo flag siteid=xxx msg='mmm' status=vvv date=DD/MM/YYY"
-            print "Usage: uam addinfo flag pairid=sensorid:siteid msg='mmm' status=vvv date=DD/MM/YYY"
-            print "Usage: uam addinfo flag detid=sensorid:det msg='mmm' status=vvv date=DD/MM/YYY"
+            print "{} sensorid=xxx msg='mmm' status=vvv {}".format(prefix,dateForm)
+            print "{} siteid=xxx msg='mmm' status=vvv {}".format(prefix,dateForm)
+            print "{} pairid=sensorid:siteid msg='mmm' status=vvv {}".format(prefix,dateForm)
+            print "{} detid=sensorid:det msg='mmm' status=vvv {}".format(prefix,dateForm)
             sys.exit()
         if "sensorid" in doThis:
             sensorId = doThis["sensorid"]
@@ -673,7 +771,7 @@ def do_showThings(fields, gDict, args):
     nargs = len(args)
     if nargs == 0:
         print actionsHelp["show"]["long"]
-        return
+        sys.exit()
     
     (doThis, todo) = splitArgs(args)
     showTime = todo[0]
@@ -856,6 +954,7 @@ def do_showThings(fields, gDict, args):
 
         pairs = gDict["pairs"]
         mypair = doThis[showTime]
+        pcount = 1
         for pair in sorted(pairs.keys()):
             tev = histoire(hDate,"test", "status", "undef");
             status = getStatus(tev, pairs[pair])
@@ -886,17 +985,18 @@ def do_showThings(fields, gDict, args):
                 d3.append("{}:{}:{}".format(det["name"], det["unit"],
                                             det["ucd"]) )
             print "{}:{},{},{},{},{},{},{}".format(siteId,sensorId,
-            lati,longi, status, siteStatus, sensorStatus, "|".join(d3))
-            operational(pair, gDict, iDate, hDate)
+            lati,longi, pcount, "Time", sensorStatus, "|".join(d3))
+#            operational(pair, gDict, iDate, hDate)
+            pcount += 1
         pass
     else:
         print "unrecognised operation: ", showTime
 
     sys.exit()
 
-def operational(pair, gDict, iDate, hDate):
-    (siteId, sensorId) = pair.split("|")
-    pass
+#def operational(pair, gDict, iDate, hDate):
+#    (siteId, sensorId) = pair.split("|")
+#    pass
 
 
 def showDetector(sensorId,detectorId, gDict, limitUstamp, hDate, activity):
@@ -930,8 +1030,6 @@ def showDetector(sensorId,detectorId, gDict, limitUstamp, hDate, activity):
 
 def showPair(pair, gDict, limitUstamp, hDate):
     lePair = gDict["pairs"][pair]
-#    print lePair
-#    return
     if not liveAt(lePair, limitUstamp):
         print pair, "not active"
         return
@@ -1540,6 +1638,7 @@ functions["detachsensorfromsite"] = do_detachSensorFromSite;
 
 # Add information to several assets
 functions["addinfo"] = do_addInfo;
+functions["rminfo"] = do_rmInfo;
 # All previous functions alter the dictionary and rewrite a new version.
 
 # The functions below do not alter the dictionary, they only examine its
