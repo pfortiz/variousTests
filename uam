@@ -49,6 +49,7 @@ import timeXtras  as tx
 #print plotopyPath
 import time
 import datetime
+import getpass
 
 ctime =  time.time()
 maintenant = ctime
@@ -56,7 +57,9 @@ maintenant = ctime
 alora = str(datetime.datetime.now())
 dt = alora.split()
 laDate = int(dt[0].replace("-", ""))
-heute = time.strftime("%d/%m/%Y")
+idf = "%d-%m-%Y";
+idtf = '%Y-%m-%dT%H:%M:%S'
+heute = time.strftime("%d-%m-%Y")
 #print alora, laDate, heute
 hms = dt[1].split(":")
 leTime = int(hms[0])/24.0 + float(hms[1])/1440. + float(hms[2])/86400;
@@ -89,11 +92,12 @@ def histoire(hstamp, action, key, value):
 #    hist["hrStamp"] = hstamp
     # hist[TSTAMP] = stime2utime(hstamp)
     if not hstamp is None:
-        hist[TSTAMP] = time.mktime(datetime.datetime.strptime(hstamp, "%d/%m/%Y").timetuple())
+        hist[TSTAMP] = time.mktime(datetime.datetime.strptime(hstamp, idf).timetuple())
     hist[LOGTIME] = time.time()
 #    hist["hrLogTime"] = str(datetime.datetime.now())
     hist[HACTION] = action
     hist[key] = value
+    hist["hu"] = uname
     return hist
 
 handles = {
@@ -106,7 +110,7 @@ handles = {
         "zip" : "Postal Code",
         "city" : "City",
         "country" : "Country",
-        "firstdate" : "Start Date DD/MM/YYYY",
+        "firstdate" : "Start Date DD-MM-YYYY",
         "operator" : "Operated by",
         "sensorid" : "Sensor ID",
 
@@ -138,7 +142,9 @@ actionsHelp = {
     "addSitesFromFile": {
         "args":"input_file",
         "short":"Add a list of sites from a file",
-        "long": """Enter a list of sites from a file."""
+        "long": """Enter a list of sites from a file.
+  Template files can be obtained with:
+    uam getInputTemplate site """
         },
     "closeSite": {
         "args":"siteid",
@@ -155,14 +161,15 @@ actionsHelp = {
         "short":"Add a list of sensors from a file",
         "long":"""Add a list of sensors from data stored in a file. 
   Template files can be obtained with:
-    uam getInputTemplate addSite or 
-    uam getInputTemplate addSensor"""
+    uam getInputTemplate sensor"""
         },
     "attachSensorToSite": {
-        "args":"<sensorID> <siteID> <date>",
+        "args":"<sensorID> <siteID> <height_above_ground_[m]> <date> ",
         "short":"Pair a sensor to a site at a given date",
         "long":"""Indicate when a sensor is physically attached into a site.
 Data starts being collected but it is unreliable.
+The height-above-ground is mandatory, and indicate the location of the
+"sensor-box" with respect to the ground.
 Use activateSensorInSite to mark the moment data from all sensors is reliable."""
         },
     "activateSensorInSite": {
@@ -177,8 +184,8 @@ Use activateSensorInSite to mark the moment data from all sensors is reliable.""
         },
     "detachSensorFromSite": {
         "args":"<sensorID> <siteID> <date>",
-        "short":"Detach a sensor from a site at a given date.",
-        "long":"""Detach a sensor from a site at a given date"""
+        "short":"Detach a sensor from a site at a specific date+time.",
+        "long":"""Detach a sensor from a site at a specific date+time"""
         },
     "addDetectorInformation": {
         "args":"<sensorID> <measured-quantity> <info> <date>",
@@ -202,21 +209,21 @@ to avoid providing data for that detector while its status is not back to 'on'""
 is shown by the use of the 'show' option."""
         },
     "addinfo": {
-        "args":"flag|field|maintenance [siteid=xxx] [sensorid=yyy] [detector=zzz] value=vvv msg='mmm' date=DD/MM/YYYY",
+        "args":"flag|field|maintenance [siteid=xxx] [sensorid=yyy] [detector=zzz] value=vvv msg='mmm' date=DD-MM-YYYY",
         "short":"adds information to assets at various levels",
         "long":"""addinfo allows to incorporate information to the dictionry at
 several levels. The operations allowed are:
-addinfo a flag to either a site, a sensor or sensor's detector.
+uam addinfo flag to either a site, a sensor or sensor's detector.
            This operation affects the status of a device.
-           value=on indicates the asset is active, operational and collecting
+           status=on indicates the asset is active, operational and collecting
                 meaningful data. 
-           value='whatever-else' will make data starting at that ponit not to
+           status='whatever-else' will make data starting at that ponit not to
                 be considered 'suitable for analysis'
-addinfo field: allow for the inclusion of fields omitted at the moment of
+uam addinfo field: allow for the inclusion of fields omitted at the moment of
            writing this software to any element. Date is ignored. If value
            is a comma separated list of words, a list is entered in the
            field.
-addinfo maintenance. Like flag, except that the status of an asset is not
+uam addinfo maintenance. Like flag, except that the status of an asset is not
            altered, but an item in the maintenance field of the asset is
            added. value TBD as of Nov-30,2017
 """
@@ -233,9 +240,9 @@ uam show log                   Show the activity as it was entered
 uam show chronology            Show the sequence of operations on sensors,
                                sites, etc
 uam show dictionary            Show the whole data structure
-uam show activeSites date      Show all active sites at date DD/MM/YYYY
-uam show activeSensors date    Show all active sensors at date DD/MM/YYYY
-uam show activePairs date      Show all active sensor/site pairs at DD/MM/YYYY
+uam show activeSites date      Show all active sites at date DD-MM-YYYY
+uam show activeSensors date    Show all active sensors at date DD-MM-YYYY
+uam show activePairs date      Show all active sensor/site pairs at DD-MM-YYYY
         """
         },
     "help": {
@@ -244,7 +251,7 @@ uam show activePairs date      Show all active sensor/site pairs at DD/MM/YYYY
         "long":"""Show some help for a given action"""
         },
     "identify": {
-        "args": "<asset> status=sss [from=DD/MM/YYYY] [to=DD/MM/YYYY] [verbose]",
+        "args": "<asset> status=sss [from=DD-MM-YYYY] [to=DD-MM-YYYY] [verbose]",
         "short":"Show periods when status = sss for a given asset",
         "long":"""identify allows you to determine periods of time when the
 status has a given value for various assets.
@@ -306,7 +313,7 @@ helpOrder = [
 templateArgs = {
     "site" : [
         "siteid", "address", "city", "country", "zip", "lon", "lat",
-        "hag", "hasl", "firstdate", "operator", "sensorid"
+        "hasl", "firstdate", "operator", "sensorid"
         ],
     "sensor" : [
         "sensorid", "provider",  "firstdate", "energysupply",
@@ -322,7 +329,7 @@ templateObjs = {
         {"sc":"city"},
         {"sd":"country"},
         {"se":"Postal_Code"},
-        {"sf":"height_above_ground_[m]"},
+#        {"sf":"height_above_ground_[m]"},
         {"sg":"height_above_sea_level_[m]"},
         {"sh":"firstdate"},
         {"si":"epoch.f"},
@@ -332,6 +339,7 @@ templateObjs = {
         {SITELAT:"latitude_[deg]"},
         {"sn":"operator"},
         {"h":"history"},
+        {"u":"username"},
 #        {"sl":"sensorid"},
         ],
     "detector" : [
@@ -405,7 +413,7 @@ ucds = {
 #}
 
 def stime2utime(stime):
-    return time.mktime(datetime.datetime.strptime(stime, "%d/%m/%Y").timetuple())
+    return time.mktime(datetime.datetime.strptime(stime, idf).timetuple())
 
 def histKiller(obj, tag):
     qtag = "{:.6f}".format(float(tag))
@@ -530,14 +538,16 @@ def do_addInfo(gDict, args):
     
     (doThis, todo) = splitArgs(args)
     theInfo = todo[0]
-    dateForm = "date=DD/MM/YYY[Thh:mm:ss.s]"
+    dateForm = "date=DD-MM-YYY[Thh:mm:ss.s]"
 
     if theInfo == "flag":
-        prefix = "Usage: uam addinfo flag"
+        usg = "uam addinfo flag"
+        prefix = "Usage: {}\n".format(usg)
         fail = checkPresence(doThis, ["msg", CLSTATUS, "date"],
                     ["sensorid", "siteid", "pairid", "detid"])
 #        if ("sensorid" not in doThis) and ("siteid" not in doThis) and ("pairid" not in doThis) and ("detectorid" not in doThis):
         if fail:
+            print "{}: Change the status of a sensor/site/detector".format(usg)
             print "{} sensorid=xxx msg='mmm' status=vvv {}".format(prefix,dateForm)
             print "{} siteid=xxx msg='mmm' status=vvv {}".format(prefix,dateForm)
             print "{} pairid=sensorid:siteid msg='mmm' status=vvv {}".format(prefix,dateForm)
@@ -639,7 +649,7 @@ def do_addInfo(gDict, args):
         fail = checkPresence(doThis, ["sensorid", "msg", "value", "date"],
                     ["sensorid"])
         if fail:
-            print "Usage: uam addinfo maintenance sensorid=xxx msg='mmm' value=vvv date=DD/MM/YYYY"
+            print "Usage: uam addinfo maintenance sensorid=xxx msg='mmm' value=vvv date=DD-MM-YYYY"
             sys.exit()
         
         sys.exit()
@@ -660,7 +670,7 @@ def do_addInfo(gDict, args):
     elif theInfo == "log":
         fail = checkPresence(doThis, ["msg", "date"], ["date"])
         if fail:
-            print "Usage: uam addinfo log msg='mmm' date=DD/MM/YYYY"
+            print "Usage: uam addinfo log msg='mmm' date=DD-MM-YYYY"
             sys.exit()
         then = heute
         msg = doThis["msg"]
@@ -711,22 +721,23 @@ uam showHelp <action>
         print h, theActions
         return
     subject = args[0].lower()
+#    print "Help-subject: ", subject
     laKey = None
 #    for key in actionsHelp.keys():
     for key in helpOrder:
+#        print "SB: {}|".format( subject)
+#        print "KL: {}|".format( key.lower())
         if subject == key.lower():
             laKey = key
             break
     if laKey is None:
-        print "Invalid action"
+        print "Invalid help action"
         sys.exit()
 
     aha = actionsHelp[laKey]
 #    print "uam", subject, aha
     print "Usage:\n    uam", subject, aha["args"]
     print "\n{}".format( aha["long"] )
-#    helper[subject](subject, helpArgs[subject])
-    pass
     sys.exit()
 
 def liveAt(history, limit):
@@ -976,7 +987,7 @@ def do_showThings(gDict, args):
         if LOGGER in gDict:
             logs = gDict[LOGGER]
             for log in logs:
-                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME])).strftime('%a %d/%m/%Y %H:%M:%S.%fZ')
+                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME])).strftime('%a %d-%m-%Y %H:%M:%S.%fZ')
                 print hrTime, log[HACTION], "on", log[XDATE]
         pass
 
@@ -992,7 +1003,7 @@ def do_showThings(gDict, args):
 
             for logk in sorted(tdic.keys()):
                 log = tdic[logk]
-                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME])).strftime('%a %d/%m/%Y %H:%M:%S.%fZ')
+                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME])).strftime('%a %d-%m-%Y %H:%M:%S.%fZ')
                 print hrTime, log[HACTION], "on", log[XDATE]
         pass
 
@@ -1418,9 +1429,9 @@ def appendSite(site, kv, vk):
     print "VK: ", vk
     firstDate = kv["firstdate"]
     if site[firstDate] == "today":
-        site[firstDate] =  time.strftime("%d/%m/%Y")
+        site[firstDate] =  time.strftime(idf)
 
-    sepoch = time.mktime(datetime.datetime.strptime(site[firstDate], "%d/%m/%Y").timetuple())
+    sepoch = time.mktime(datetime.datetime.strptime(site[firstDate], idf).timetuple())
     sdft =  site[firstDate]
 #    sdu = str(datetime.datetime(int(sd[2]), int(sd[1]), int(sd[0])))
     sdu = stime2utime(sdft)
@@ -1431,6 +1442,7 @@ def appendSite(site, kv, vk):
 #    fdu = str(datetime.datetime(int(fd[2]), int(fd[1]), int(fd[0])))
     fdu = stime2utime(site[kv["date.l"]])
     site[kv["epoch.l"]] = fdu
+#    site[kv["username"]] = uname
     site[HISTORY] = []
 #    stamp = [ sdu , sdft, "activated"]
     opera = kv["operator"]
@@ -1483,20 +1495,20 @@ def appendSite(site, kv, vk):
             print "{:20s} : {} ({})".format(k, site[k], k)
 
 
-def checkArgs(aktion, args, nmandatory):
+def checkArgs0(aktion, args, nmandatory):
     if len(args) < nmandatory:
         do_showHelp(gDict, [aktion])
-#        print "Usage: uam {} {}".format(aktion, actionsHelp[aktion]["args"])
-##        print actionsHelp[aktion]["short"]
-#        print actionsHelp[aktion]["long"]
-#        print 
-#        sys.exit()
+
+def checkArgs(args, nmandatory):
+    if len(args) < nmandatory:
+        do_showHelp(gDict, [laAction])
+
 
 def do_addSitesFromFile(gDict, args):
     """
     Function to collect data about a site from stdin
     """
-    checkArgs("addSitesFromFile", args, 1)
+    checkArgs(args, 1)
 
         
     fileName = args[0]
@@ -1521,13 +1533,15 @@ def do_addSitesFromFile(gDict, args):
     for line in lines:
         if len(line) < 2:
             continue
-        if line != "addsite":
+        if line != "end.asset":
             kv = line.split("=")
             k0 = kv[0]
             if k0 in walkeyrie:
                 site[ walkeyrie[k0] ] = kv[1]
             else:
                 site[ k0 ] = kv[1]
+        elif line == "begin.asset":
+            pass
         else:
             appendSite(site, walkeyrie, keyWal)
             site = {}
@@ -1540,7 +1554,7 @@ def do_createTemplate(gDict, args):
     """
     Function to create input templates for sensors and sites
     """
-    checkArgs("getinputtemplate", args, 1)
+    checkArgs(args, 1)
 #    if len(args) == 0:
 #        do_showHelp(gDict, ["getinputtemplate"])
     (doThis, todo) = splitArgs(args)
@@ -1559,11 +1573,12 @@ def do_createTemplate(gDict, args):
     examples = {
         "operator" : "id:xx|contact:xx|tel:xxxyyyyzzz|email:xxx@yyy",
         "provider" : "id:xx|contact:xx|tel:xxxyyyyzzz|email:xxx@yyy",
-        "firstdate": "DD/MM/YYYY",
+        "firstdate": "DD-MM-YYYY",
         "energysupply": "solar|mains",
     }
-    hide = ["detector", "epoch.f", "date.l", "epoch.l", "history"]
+    hide = ["detector", "epoch.f", "date.l", "epoch.l", "history", "username"]
     for i in range(0,n):
+        print "begin.asset"
         for uf in fields:
             uk = uf.keys()
             for f in uk:
@@ -1579,7 +1594,7 @@ def do_createTemplate(gDict, args):
                     print "{}={}".format(uff, examples[uff])
                 else:
                     print "{}=".format(uff)
-        print "add{}\n".format(kind)
+        print "end.asset\n"
     sys.exit()
 
 #def do_addSensor(fields, gDict, args):
@@ -1620,9 +1635,9 @@ def do_createTemplate(gDict, args):
 def appendSensor(sensor, kv, vk):
     firstdate = kv["firstdate"]
     if sensor[firstdate] == "today":
-        sensor[firstdate] =  time.strftime("%d/%m/%Y")
+        sensor[firstdate] =  time.strftime(idf)
 
-    sepoch = time.mktime(datetime.datetime.strptime(sensor[firstdate], "%d/%m/%Y").timetuple())
+    sepoch = time.mktime(datetime.datetime.strptime(sensor[firstdate], idf).timetuple())
     sdft =  sensor[firstdate]
 #    sdu = str(datetime.datetime(int(sd[2]), int(sd[1]), int(sd[0])))
     sdu = stime2utime(sdft)
@@ -1633,6 +1648,7 @@ def appendSensor(sensor, kv, vk):
 #    fdu = str(datetime.datetime(int(fd[2]), int(fd[1]), int(fd[0])))
     fdu = stime2utime(sensor[kv["date.l"]])
     sensor[kv["epoch.l"]] = fdu
+#    sensor[kv["username"]] = uname
     sensor[HISTORY] = []
 #    stamp = [ sdu , "activated"]
 #    event = histoire(None, msg, "id", sid)
@@ -1691,7 +1707,7 @@ def do_addSensorsFromFile(gDict, args):
     Function to collect data about sensors from a file
     """
 
-    checkArgs("addSensorsFromFile", args, 1)
+    checkArgs(args, 1)
     fileName = args[0]
     if not os.path.isfile(fileName):
         print fileName, " does not exist. Quiting"
@@ -1724,7 +1740,7 @@ def do_addSensorsFromFile(gDict, args):
             continue
         if "#" in line:
             continue
-        if line == "addsensor":
+        if line == "end.asset":
             if "detector" in sensor:
                 del sensor["detector"]
             sensor[DETECTORS] = quant
@@ -1734,6 +1750,8 @@ def do_addSensorsFromFile(gDict, args):
             sensor = {}
             lquant  = []
             quant = {}
+        elif line == "begin.asset":
+            pass
         else:
 #            print line
             k_v = line.split("=")
@@ -1773,7 +1791,7 @@ def do_activateSensorInSite(gDict, args):
     """
     Function to attach a sensor to a site
     """
-    checkArgs("activatesensorinsite", args, 3)
+    checkArgs(args, 3)
 
     sensorid = args[0].lower()
     siteid = args[1].lower()
@@ -1857,37 +1875,38 @@ def getSenSite(gDict, sensorid, siteid, date, what):
 
     return (siteKey, sensorKey)
 
-#def do_attachSensorToSite(gDict, args):
-#    """
-#    Function to attach a sensor to a site
-#    """
-#    checkArgs("attachsensorstosite", args, 3)
-#    sensorid = args[0].lower()
-#    siteid = args[1].lower()
-#    date = args[2]
-#
-#    (siteKey, sensorKey) = getSenSite(gDict, sensorid, siteid, date,
-#    "attaching")
-#
-#    fdu = stime2utime(date)
-#    if "pairs" not in gDict:
-#        gDict["pairs"] = {}
-#    pairs = gDict["pairs"]
-#    tag = "{}|{}".format(siteKey, sensorKey)
-#    print "pairing: ", sensorid, siteid, date, fdu, tag
-#    if tag not in pairs:
-#        pairs[tag] = []
-#    tev = histoire(date,"attach", HSTATUS, "active");
-#    insert(tev, pairs[tag])
-#
-#    tev = histoire(date,"attach to {}".format(siteid), HSTATUS, "active");
-#    insert(tev, gDict[SENSORS][sensorKey][HISTORY])
-#    msg = "{} installed at {}".format(sensorKey, siteKey)
-#    event = histoire(date, msg, XDATE, date)
-#    gDict[LOGGER].append(event)
-#    shist = gDict[SITES][siteKey][HISTORY]
-#    tev = histoire(date,"{} attached".format(sensorKey), HSTATUS, "att");
-#    insert(tev, shist)
+def do_attachSensorToSite(gDict, args):
+    """
+    Function to attach a sensor to a site
+    """
+#    checkArgs(laAction, args, 3)
+    checkArgs(args, 3)
+    sensorid = args[0].lower()
+    siteid = args[1].lower()
+    date = args[2]
+
+    (siteKey, sensorKey) = getSenSite(gDict, sensorid, siteid, date,
+    "attaching")
+
+    fdu = stime2utime(date)
+    if "pairs" not in gDict:
+        gDict["pairs"] = {}
+    pairs = gDict["pairs"]
+    tag = "{}|{}".format(siteKey, sensorKey)
+    print "pairing: ", sensorid, siteid, date, fdu, tag
+    if tag not in pairs:
+        pairs[tag] = []
+    tev = histoire(date,"attach", HSTATUS, "active");
+    insert(tev, pairs[tag])
+
+    tev = histoire(date,"attach to {}".format(siteid), HSTATUS, "active");
+    insert(tev, gDict[SENSORS][sensorKey][HISTORY])
+    msg = "{} installed at {}".format(sensorKey, siteKey)
+    event = histoire(date, msg, XDATE, date)
+    gDict[LOGGER].append(event)
+    shist = gDict[SITES][siteKey][HISTORY]
+    tev = histoire(date,"{} attached".format(sensorKey), HSTATUS, "att");
+    insert(tev, shist)
 
 
 def insert(stamp, aList):
@@ -1975,11 +1994,7 @@ def do_detachSensorFromSite(gDict, args):
     """
     Function to detach a sensor from a site
     """
-    checkArgs("detachSensorsFromSite".lower(), args, 3)
-#    if len(args) < 3:
-#        print "Invalid syntax, try:"
-#        print execute, "detachSensorsFromSite sensorID siteID DD/MM/YYYY"
-#        sys.exit()
+    checkArgs(args, 3)
     sensorid = args[0].lower()
     siteid = args[1].lower()
     date = args[2]
@@ -2049,7 +2064,7 @@ functions["addsensorsfromfile"] = do_addSensorsFromFile;
 # In fact, there can be a gap of several days between the date of the
 # installation and the time in which reliable data starts being gathered.
 # The sensor/site entry is marked with  "status=active"
-#   functions["attachsensortosite"] = do_attachSensorToSite;
+functions["attachsensortosite"] = do_attachSensorToSite;
 
 # Records in the "pairs" and "site" history that a sensor has started
 # gathering reliable data at a given date.
@@ -2099,6 +2114,7 @@ if nargs == 0:
         print "   ", mark, a, aha["args"], "\n\t", aha["short"]
     sys.exit()
 
+uname = getpass.getuser()
 laAction = args[0]
 args.pop(0)
 #print "dealing with action", laAction
