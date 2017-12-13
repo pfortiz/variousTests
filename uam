@@ -69,13 +69,14 @@ stamp = "{:.6f}".format(laDate + leTime)
 epoch = datetime.datetime(1970, 1, 1)
 #print "epoch = " , epoch
 assetsFile = "/Users/Shared/ufloTables/assets.db"
+lcDict = {}
 HISTORY = "h"
 LOGGER = "log"
 XDATE = "xdate"
 SITES = "sites"
 SENSORS = "sensors"
 SENSORID = "za"
-DETECTORS = "detectors"
+DETECTORS = "dk"
 LISTOFDETECTORS = "ld"
 LISTOFSENSORS = "lz"
 LISTOFSITES = "ls"
@@ -86,6 +87,7 @@ LOGTIME = "hL"
 HACTION = "hA"
 CLSTATUS = "status"
 HSTATUS = "hS"
+PAIRS = "pairs"
 
 def histoire(hstamp, action, key, value):
     hist = {}
@@ -100,30 +102,30 @@ def histoire(hstamp, action, key, value):
     hist["hu"] = uname
     return hist
 
-handles = {
-        "siteid" : "site ID",
-        "address" : "Street Address",
-        "lon" : "longitude [deg]",
-        "lat" : "latitude [deg]",
-        "hag" : "Height above ground [m]",
-        "hasl" : "height above sea level [m]",
-        "zip" : "Postal Code",
-        "city" : "City",
-        "country" : "Country",
-        "firstdate" : "Start Date DD-MM-YYYY",
-        "operator" : "Operated by",
-        "sensorid" : "Sensor ID",
-
-        "provider" : "Sensor provider name",
-        "nquantities" : "Number of quantities measured",
-        "qname" : "Quantity measured",
-        "qunits" : "Quantity units",
-        "quncertainty" : "Quantity uncertainty",
-        "qucd" : "Quantity associated UCD",
-        "serialnumber" : "Sensor serial number",
-
-        "ifilename" : "Input file name",
-}
+#handles = {
+#        "siteid" : "site ID",
+#        "address" : "Street Address",
+#        "lon" : "longitude [deg]",
+#        "lat" : "latitude [deg]",
+#        "hag" : "Height above ground [m]",
+#        "hasl" : "height above sea level [m]",
+#        "zip" : "Postal Code",
+#        "city" : "City",
+#        "country" : "Country",
+#        "firstdate" : "Start Date DD-MM-YYYY",
+#        "operator" : "Operated by",
+#        "sensorid" : "Sensor ID",
+#
+#        "provider" : "Sensor provider name",
+#        "nquantities" : "Number of quantities measured",
+#        "qname" : "Quantity measured",
+#        "qunits" : "Quantity units",
+#        "quncertainty" : "Quantity uncertainty",
+#        "qucd" : "Quantity associated UCD",
+#        "serialnumber" : "Sensor serial number",
+#
+#        "ifilename" : "Input file name",
+#}
 
 
 
@@ -133,38 +135,41 @@ handles = {
 #            "showSensorSite",
 #            "addMaintenance", "terminate"];
 
+
 actionsHelp = {
-#    "addSite": {
-#        "args" : "",
-#        "short": "Add a site by hand",
-#        "long": """ Enter a single site by hand. Deprecated """
-#        },
+    "getInputTemplate": {
+        "args":"type=<site|sensor> [n=N] [ > <input_file>]",
+        "Args":{"m":["type"], "op":["n"], "mc":[] },
+        "short": "Prints a template to stdout to enter sensor or site data from files. If 'n=X' is specified, X templates are produced.",
+        "long":"""Generate one or more templates to enter sensor or site basic data.
+
+You are advised to redirect the output to a filename for you to
+edit and enter all information relative to that sensor/site.
+
+Note that if you have other pieces of information not shown in the list,
+just add them as key=value in extra lines."""
+        },
     "addSitesFromFile": {
-        "args":"input_file",
+        "args":"file=input_file",
         "short":"Add a list of sites from a file",
         "long": """Enter a list of sites from a file.
   Template files can be obtained with:
     uam getInputTemplate site """
         },
     "closeSite": {
-        "args":"siteid",
+        "args":"site=siteid",
         "short":"Mark the site as closed",
         "long": """Mark a given site with status closed."""
         },
-#    "addSensor": {
-#        "args": "",
-#        "short":"Add a sensor by hand",
-#        "long": """Enter data for a single sensor by hand. Deprecated"""
-#        },
     "addSensorsFromFile": {
-        "args":"filename", 
+        "args":"file=filename", 
         "short":"Add a list of sensors from a file",
         "long":"""Add a list of sensors from data stored in a file. 
   Template files can be obtained with:
     uam getInputTemplate sensor"""
         },
     "attachSensorToSite": {
-        "args":"<sensorID> <siteID> <height_above_ground_[m]> <date> ",
+        "args":"sensor=sensorID site=siteID hag=height_above_ground_[m] date=DD-MM-YY ",
         "short":"Pair a sensor to a site at a given date",
         "long":"""Indicate when a sensor is physically attached into a site.
 Data starts being collected but it is unreliable.
@@ -173,43 +178,43 @@ The height-above-ground is mandatory, and indicate the location of the
 Use activateSensorInSite to mark the moment data from all sensors is reliable."""
         },
     "activateSensorInSite": {
-        "args":"<sensorID> <siteID> <date> ",
+        "args":"sensor=sensorID site=siteID date=DD-MM-YYYY ",
         "short":"Indicate when reliable data gathering begins",
         "long":"""Mark when a sensor starts collecting reliable data"""
         },
     "deactivateSensorInSite": {
-        "args":"<sensorID> <siteID> <date> ",
+        "args":"sensor=sensorID site=siteID date=DD-MM-YYYY ",
         "short":"Indicate when unreliable data gathering begins",
         "long":"""Mark when a sensor starts collecting data considered unreliable """
         },
     "detachSensorFromSite": {
-        "args":"<sensorID> <siteID> <date>",
+        "args":"sensor=sensorID site=siteID date=DD-MM-YYYY ",
         "short":"Detach a sensor from a site at a specific date+time.",
         "long":"""Detach a sensor from a site at a specific date+time"""
         },
-    "addDetectorInformation": {
-        "args":"<sensorID> <measured-quantity> <info> <date>",
-        "short":"Alter the status of data collection for an individual detector attached to a sensor.",
-        "long":"""As detectors can go rogue, this is a way to indicate when
-a detector has gone belly up or is back to normal.
-info=on   indicates a perfectly working detector
-info=anything-else indicates the detector is acting up and it will be used
-to avoid providing data for that detector while its status is not back to 'on'"""
-        },
+#    "addDetectorInformation": {
+#        "args":"sensor=sensorID detector=measured-quantity <info> <date>",
+#        "short":"Alter the status of data collection for an individual detector attached to a sensor.",
+#        "long":"""As detectors can go rogue, this is a way to indicate when
+#a detector has gone belly up or is back to normal.
+#info=on   indicates a perfectly working detector
+#info=anything-else indicates the detector is acting up and it will be used
+#to avoid providing data for that detector while its status is not back to 'on'"""
+#        },
     "deactivateSite": {
         "args":"<siteID> ",
         "short":"mark a site as decommissioned",
         "long":"""Mark a site as decommissioned """
         },
     "rminfo": {
-        "args":"history-tag",
+        "args":"tag=history-tag",
         "short":"removes the entry pointed by 'history-tag' from the corresponding history entry",
         "long":"""Removes a history entry with the label 'history-tag'. 
 'history-tag' shall be obtaining from the last column found when a history
 is shown by the use of the 'show' option."""
         },
     "addinfo": {
-        "args":"flag|field|maintenance [siteid=xxx] [sensorid=yyy] [detector=zzz] value=vvv msg='mmm' date=DD-MM-YYYY",
+        "args":"info=flag|field|maintenance [siteid=xxx] [sensorid=yyy] [detector=zzz] value=vvv msg='mmm' date=DD-MM-YYYY",
         "short":"adds information to assets at various levels",
         "long":"""addinfo allows to incorporate information to the dictionry at
 several levels. The operations allowed are:
@@ -232,7 +237,7 @@ uam addinfo log. Like flag, except that the status of an asset is not
 """
         },
     "show": {
-        "args": "<element> [@date]",
+        "args": "element [date=x]",
         "short":"Show a particular database element now or at the specified date",
         "long":"""show allows you to examine different aspects of the data.
 Valid entries are:
@@ -269,22 +274,6 @@ from= determines the earliest date to perform the search. Default: 01-01-2015
 to= determines the latest date to perform the search. Default: today
 If verbose is specified, all history entries are shown in addition"""
         },
-    "getInputTemplate": {
-        "args":"<site|sensor> [n=P] [ > <input_file>]",
-        "short": "Prints a template to stdout to enter sensor or site data from files. If 'n=X' is specified, X templates are produced.",
-        "long":"""Generate one or more templates to enter sensor or site basic data.
-
-You are advised to redirect the output to a filename for you to
-edit and enter all information relative to that sensor/site.
-
-Note that if you have other pieces of information not shown in the list,
-just add them as key=value in extra lines."""
-        },
-#    "showSensorSite": {
-#        "args":"<sensorID> <siteID> <date> : ",
-#        "short": "examine information and status for a sensor/site pair at a given date",
-#        "long":""" """
-#        },
 
     };
 
@@ -299,6 +288,7 @@ helpOrder = [
     "deactivateSite",
     "identify",
     "addinfo",
+    "rminfo",
     "show",
     "help",
 #    "showOperational",
@@ -343,7 +333,6 @@ templateObjs = {
         {"sn":"operator"},
         {"h":"history"},
         {"u":"username"},
-#        {"sl":"sensorid"},
         ],
     "detector" : [
         {"dn":"name"},
@@ -366,6 +355,7 @@ templateObjs = {
         {"zl":"epoch.l"},
         {"zz":"n-detectors"},
         {"h":"history"},
+        {"ld":"listOfDetectors"},
         ],
 }
 
@@ -461,16 +451,19 @@ def do_rmInfo(gDict, args):
     """
     Function to remove an entry from any of the history lists
     """
-    if len(args) == 0:
-        do_showHelp(gDict, ["rminfo"])
+#    if len(args) == 0:
+#        do_showHelp(gDict, ["rminfo"])
+    (doThis, todo) = splitArgs(args, 1)
+    fail = checkPresence(doThis, ["tag"], [])
+    if fail["truth"]:
+        sys.exit()
 
-    (doThis, todo) = splitArgs(args)
-    theInfo = todo[0]
+    theInfo = fail["tag"]
 
     if theInfo == "history":
         prefix = "Usage: uam rminfo history"
         fail = checkPresence(doThis, ["histoid"], ["histoid"])
-        if fail:
+        if fail["truth"]:
             print prefix, "histoid=xxx.xxx"
             sys.exit()
         theTag = doThis["histoid"]
@@ -488,7 +481,7 @@ def do_rmInfo(gDict, args):
         fail = checkPresence(doThis, ["fname"],
                     ["sensorid", "siteid"])
 
-        if fail:
+        if fail["truth"]:
             print "Usage: uam rminfo field sensorid=xxx fname='mmm'"
             print "Usage: uam rminfo field siteid=xxx fname='mmm'"
             sys.exit()
@@ -537,11 +530,16 @@ def do_addInfo(gDict, args):
     """
     Function to add information to an asset
     """
-    if len(args) == 0:
-        do_showHelp(gDict, ["addinfo"])
-    
-    (doThis, todo) = splitArgs(args)
-    theInfo = todo[0]
+#    if len(args) == 0:
+#        do_showHelp(gDict, ["addinfo"])
+#    
+#    (doThis, todo) = splitArgs(args)
+    (doThis, todo) = splitArgs(args, 1)
+    fail = checkPresence(doThis, ["info"], [])
+    if fail["truth"]:
+        sys.exit()
+
+    theInfo = doThis["info"]
     dateForm = "date=DD-MM-YYY[Thh:mm:ss.s]"
 
     if theInfo == "flag":
@@ -550,7 +548,7 @@ def do_addInfo(gDict, args):
         fail = checkPresence(doThis, ["msg", CLSTATUS, "date"],
                     ["sensorid", "siteid", "pairid", "detid"])
 #        if ("sensorid" not in doThis) and ("siteid" not in doThis) and ("pairid" not in doThis) and ("detectorid" not in doThis):
-        if fail:
+        if fail["truth"]:
             print "{}: Change the status of a sensor/site/detector".format(usg)
             print "{} sensorid=xxx msg='mmm' status=vvv {}".format(prefix,dateForm)
             print "{} siteid=xxx msg='mmm' status=vvv {}".format(prefix,dateForm)
@@ -558,38 +556,43 @@ def do_addInfo(gDict, args):
             print "{} detid=sensorid:det msg='mmm' status=vvv {}".format(prefix,dateForm)
             sys.exit()
         if "sensorid" in doThis:
+            sensor = fail["sensorid"]
             sensorId = doThis["sensorid"]
-            if sensorId not in gDict[SENSORS]:
-                print sensorId, "is not an existing sensor. Quiting"
+            if sensor is None:
+#                print sensorId, "is not an existing zensor. Quiting"
                 sys.exit()
-            sensor = gDict[SENSORS][sensorId]
-            print sensor
-            history = gDict[SENSORS][sensorId][HISTORY]
+            history = gDict[SENSORS][sensor["uid"]][HISTORY]
             msg = "{} {}".format(sensorId, doThis["msg"])
+            print msg, doThis[CLSTATUS], history
+            sys.exit()
         elif "siteid" in doThis:
             siteId = doThis["siteid"]
-            if siteId not in gDict[SITES]:
-                print siteId, "is not an existing site. Quiting"
+            site = fail["siteid"]
+            if site is None:
+#                print siteId, "is not an existing site. Quiting"
                 sys.exit()
-            history = gDict[SITES][siteId][HISTORY]
+            history = gDict[SITES][site["uid"]][HISTORY]
             msg = "{} {}".format(siteId, doThis["msg"])
+            print msg, doThis[CLSTATUS], history
+            sys.exit()
         elif "pairid" in doThis:
             pairId = doThis["pairid"]
             (sensorId, siteId) = pairId.split(',')
             lePair = "{}|{}".format(siteId, sensorId)
             riaPel = "{}|{}".format(sensorId, siteId)
-            pairs = gDict["pairs"]
-            if lePair in pairs:
-                thePair = lePair
-            elif riaPel in pairs:
-                thePair = riaPel
+            pairs = lcDict[PAIRS]
+            print lePair, riaPel, pairs
+            if lePair.lower() in pairs:
+                thePair = pairs[lePair.lower()]
+            elif riaPel.lower() in pairs:
+                thePair = pairs[riaPel.lower()]
             else:
-                print "invalid pair ({} or {}), sorry, can't continue.".format(lePair, riaPel)
+                print "invalido pair ({} or {}), sorry, can't continue.".format(lePair, riaPel)
                 sys.exit()
             print pairId, thePair
-            history = gDict["pairs"][thePair]
+            history = gDict[PAIRS][thePair]
             msg = "{} {}".format(thePair, doThis["msg"])
-#            sys.exit()
+            sys.exit()
             pass
         elif "detid" in doThis:
             detPair = doThis["detid"]
@@ -625,7 +628,7 @@ def do_addInfo(gDict, args):
 #        if ("fname" not in doThis ) or ("fvalue" not in doThis):
 #            fail = True
 
-        if fail:
+        if fail["truth"]:
             print "Usage: uam addinfo field sensorid=xxx fname='mmm' fvalue=vvv"
             print "Usage: uam addinfo field siteid=xxx fname='mmm' fvalue=vvv"
             sys.exit()
@@ -652,7 +655,7 @@ def do_addInfo(gDict, args):
     elif theInfo == "maintenance":
         fail = checkPresence(doThis, ["sensorid", "msg", "value", "date"],
                     ["sensorid"])
-        if fail:
+        if fail["truth"]:
             print "Usage: uam addinfo maintenance sensorid=xxx msg='mmm' value=vvv date=DD-MM-YYYY"
             sys.exit()
         
@@ -673,7 +676,7 @@ def do_addInfo(gDict, args):
         pass
     elif theInfo == "log":
         fail = checkPresence(doThis, ["msg", "date"], ["date"])
-        if fail:
+        if fail["truth"]:
             print "Usage: uam addinfo log msg='mmm' date=DD-MM-YYYY"
             sys.exit()
         then = heute
@@ -698,54 +701,72 @@ def checkPresence(doit, mustHave, oneAtLeast):
     answer["siteid"] = None
     answer["pairid"] = None
     answer["detid"] = None
+    answer["type"] = None
     for mh in mustHave:
         if mh not in doit:
-#            print mh, "not located"
+            print "{}=x not defined".format(mh)
             fmh = True
+        else:
+            answer[mh] = doit[mh]
     if fmh:
         answer["truth"] =  True
-    foal = False
 
+    if set(oneAtLeast) != set(mustHave) and len(oneAtLeast) > 0:
+        foal = False
 
-    for mh in oneAtLeast:
-        if mh in doit:
-            foal = True
-            ass_et = doit[mh]
-            if mh == "sensorid":
-                answer[mh] = getSensor(ass_et)
-            elif mh == "siteid":
-                answer[mh] = getSite(ass_et)
-            elif mh == "pairid":
-                answer[mh] = getPair(ass_et)
-            elif mh == "detid":
-                answer[mh] = getDetector(ass_et)
-                pass
-    if foal == False:
-        answer["truth"] =  True
+        for mh in oneAtLeast:
+            if mh in doit:
+                foal = True
+                ass_et = doit[mh]
+                if mh == "sensorid":
+                    answer[mh] = getSensor(ass_et)
+                elif mh == "siteid":
+                    answer[mh] = getSite(ass_et)
+                elif mh == "pairid":
+                    answer[mh] = getPair(ass_et)
+                elif mh == "detid":
+                    answer[mh] = getDetector(ass_et)
+                elif mh == "type":
+                    if ass_et == "site" or ass_et == "sensor":
+                        answer[mh] = ass_et
+                    pass
+        if foal == False:
+            print "one of {} must be defined".format(oneAtLeast)
+            answer["truth"] =  True
+    if answer["truth"]:
+        sys.exit()
     return answer
 
 def getSensor(sid):
-    if sid not in gDict[SENSORS]:
+    if sid.lower() not in lcDict[SENSORS]:
         print sid, "is not an existing sensor. Quiting"
         return None
     else:
-        return gDict[SENSORS][sid]
+        tsid = lcDict[SENSORS][sid.lower()]
+        gDict[SENSORS][tsid]["uid"] = tsid
+        return gDict[SENSORS][tsid]
 
 def getSite(sid):
-    if sid not in gDict[SITES]:
+    if sid.lower() not in lcDict[SITES]:
         print sid, "is not an existing site. Quiting"
         return None
     else:
-        return gDict[SITES][sid]
+        tsid = lcDict[SITES][sid.lower()]
+        gDict[SITES][tsid]["uid"] = tsid
+        return gDict[SITES][tsid]
 
 def getPair(sid):
     (sensId, sitId) = sid.split(',')
     lePair = "{}|{}".format(sitId, sensId)
     riaPel = "{}|{}".format(sensId, sitId)
-    if lePair in pairs:
-       thePair = gDict["pairs"][lePair]
-    elif riaPel in pairs:
-       thePair = gDict["pairs"][riaPel]
+    pairs = lcDict[PAIRS]
+    print pairs
+    if lePair.lower() in pairs.keys():
+       rLePair = pairs[lePair.lower()]
+       thePair = gDict[PAIRS][rLePair]
+    elif riaPel.lower() in pairs.keys():
+       rRiaPel = pairs[riaPel.lower()]
+       thePair = gDict[PAIRS][rRiaPel]
     else:
        print "invalid pair ({} or {}), sorry, can't continue.".format(lePair, riaPel)
        thePair = None
@@ -839,6 +860,12 @@ def showSite(site, gDict, limitUstamp, hDate, activity):
         print site, "not active"
         return
 
+    revKey = {}
+    sensTags =  templateObjs["site"]
+    for p in sensTags:
+        for kk in p.keys():
+            revKey[kk] = p[kk]
+
 #    print "date comparison: ", firstUs, limitUstamp
     if activity:
         print "activity for site: ", site
@@ -852,19 +879,31 @@ def showSite(site, gDict, limitUstamp, hDate, activity):
         print "Data for site: ", site
         for k in sorted(gDict[SITES][site].keys()):
             if k == HISTORY:
-                print " {}.{}".format(site, k)
+                print " {}.{}".format(site, revKey[k])
                 hist = gDict[SITES][site][k]
                 showHist({HACTION:"Action", HSTATUS:"Status"}, None)
                 for he in hist:
                     showHist(he, limitUstamp)
             else:
-                print " {}.{}= {}".format(site, k, gDict[SITES][site][k])
+                print " {}.{}= {}".format(site, revKey[k], gDict[SITES][site][k])
 
 def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
     leSensor = gDict[SENSORS][sensor]
+
     if not liveAt(leSensor[HISTORY], limitUstamp):
         print sensor, "not active"
         return
+
+    revKey = {}
+    sensTags =  templateObjs["sensor"]
+    for p in sensTags:
+        for kk in p.keys():
+            revKey[kk] = p[kk]
+    sensTags =  templateObjs["detector"]
+    for p in sensTags:
+        for kk in p.keys():
+            revKey[kk] = p[kk]
+
     # date detection should occur here
     if activity:
         k = HISTORY
@@ -884,23 +923,23 @@ def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
                 p = sorted(leSensor[k].keys())
                 for e in p:
                     f = leSensor[k][e]
-                    print " {}.{}.{} = {}".format(sensor, k, e, f)
+                    print " {}.{}.{} = {}".format(sensor, revKey[k], e, f)
                 pass
             elif k == LISTOFDETECTORS:
                 dets = []
                 for d in leSensor[k]:
                     dets.append(str(d))
-                print " {}.{}= {}".format(sensor, k, dets)
+                print " {}.{}= {}".format(sensor, revKey[k], dets)
             elif k == HISTORY and showH == True:
                 hist = leSensor[k]
-                print " {}.{}:".format(sensor, k)
+                print " {}.{}:".format(sensor, revKey[k])
                 showHist({HACTION:"Action", HSTATUS:"Status"}, None)
                 for he in hist:
                     showHist(he, limitUstamp)
             elif k == HISTORY and showH == False:
-                print " {}.{}:".format(sensor, k)
+                print " {}.{}:".format(sensor, revKey[k])
             else:
-                print " {}.{}= {}".format(sensor, k, leSensor[k])
+                print " {}.{}= {}".format(sensor, revKey[k], leSensor[k])
     
         if showH == False:
             return
@@ -908,14 +947,15 @@ def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
         print sensor,  "detectors:"
         for ms in leSensor[LISTOFDETECTORS]:
             qtty = leSensor[DETECTORS][ms]
-            print sensor, ms, qtty['unit'], qtty['ucd']
+            label = "{}.{}".format(sensor, ms)
+            print " {:25s}".format(label), ms, qtty['du'], qtty['dz']
     
-            if len(qtty['history']) > 0:
+            if len(qtty[HISTORY]) > 0:
 #                chist = shist
                 chist = []
                 for h in shist:
                     chist.append(h)
-                for h in  qtty['history']:
+                for h in  qtty[HISTORY]:
                     insert(h, chist)
                 print sensor, ms, HISTORY
                 showHist({HACTION:"Action", HSTATUS:"Status"}, None)
@@ -959,7 +999,9 @@ def showHist(entry, limit):
 #    print "  ", hrTime, action, status
     print msg
 
-def splitArgs(args):
+def splitArgs(args, nmandatory):
+    if len(args) < nmandatory:
+        do_showHelp(gDict, [laAction])
     doThis = {}
     todo = []
     for arg in args:
@@ -979,16 +1021,21 @@ def do_showThings(gDict, args):
     """
     Function to show any dictionary content
     """
-    if len(args) == 0:
-        do_showHelp(gDict, ["show"])
-    
-    (doThis, todo) = splitArgs(args)
+#    if len(args) == 0:
+#        do_showHelp(gDict, ["show"])
+#    
+#    (doThis, todo) = splitArgs(args)
+    (doThis, todo) = splitArgs(args, 1)
+#    fail = checkPresence(doThis, ["item"], [])
+#    if fail["truth"]:
+#        sys.exit()
+
     showTime = todo[0]
 #    dumpclean(gDict)
     iDate = None
     hDate = None
     activity = False
-    y3k   = stime2utime("10/01/3000")
+    y3k   = stime2utime("10-01-3000")
 #    print "maintenant: ", maintenant
     if "date" in todo:
         hDate = doThis["date"]
@@ -1023,8 +1070,8 @@ def do_showThings(gDict, args):
             for sensor in sensors:
                 showSensor(sensor, gDict, False, iDate, hDate, activity)
     
-        if "pairs" in gDict:
-            pairs = gDict["pairs"]
+        if PAIRS in gDict:
+            pairs = gDict[PAIRS]
             print "\nList of pairs: ", pairs.keys()
             for pair in sorted(pairs.keys()):
                 showPair(pair, gDict, iDate, hDate)
@@ -1038,27 +1085,27 @@ def do_showThings(gDict, args):
         if LISTOFSENSORS in gDict:
             sensors = gDict[LISTOFSENSORS]
             print "sensors list: ", sensors
-            mysensor = doThis[showTime]
+            mysensor = doThis[showTime].lower()
             if mysensor == "*":
                 for sensor in sensors:
                     showSensor(sensor, gDict, False, iDate, hDate, activity)
             else:
                 for sensor in sensors:
-#                    if sensor.lower() == mysensor:
-                    if sensor == mysensor:
+                    if sensor.lower() == mysensor:
+#                    if sensor == mysensor:
                         showSensor(sensor, gDict, True, iDate, hDate, activity)
                         break
             
     elif showTime == "site":
         if LISTOFSITES in gDict:
             sites = gDict[LISTOFSITES]
-            mysite = doThis[showTime]
+            mysite = doThis[showTime].lower()
             if mysite == "*":
                 for site in sites:
                     showSite(site, gDict, iDate, hDate, activity)
             else:
                 for site in sites:
-                    if site == mysite:
+                    if site.lower() == mysite:
                         showSite(site, gDict, iDate, hDate, activity)
             
         pass
@@ -1134,8 +1181,8 @@ def do_showThings(gDict, args):
                 pass
         pass
     elif showTime == "pair":
-        if "pairs" in gDict:
-            pairs = gDict["pairs"]
+        if PAIRS in gDict:
+            pairs = gDict[PAIRS]
             mypair = doThis[showTime]
             if mypair == "*":
                 for pair in sorted(pairs.keys()):
@@ -1157,11 +1204,11 @@ def do_showThings(gDict, args):
         if iDate is None:
             hDate = heute
             iDate = stime2utime(hDate)
-        if "pairs" not in gDict:
+        if PAIRS not in gDict:
             print "#Nothing to do. Sorry"
             sys.exit()
 
-        pairs = gDict["pairs"]
+        pairs = gDict[PAIRS]
         mypair = doThis[showTime]
         pcount = 1
         for pair in sorted(pairs.keys()):
@@ -1249,15 +1296,14 @@ def do_identifyStatus(gDict, args):
     """
     Function to show periods in which an asset has a given status
     """
-    if len(args) == 0:
-        do_showHelp(gDict, ["identify"])
-#    nargs = len(args)
-#    if nargs == 0:
-#        print "uam identify ", actionsHelp["identify"]["args"],"\n"
-#        print actionsHelp["identify"]["long"]
-#        sys.exit()
+#    if len(args) == 0:
+#        do_showHelp(gDict, ["identify"])
+    (doThis, todo) = splitArgs(args, 2)
+    fail = checkPresence(doThis, [CLSTATUS], ["sensor","site","pair", "detector"])
+    if fail["truth"]:
+        sys.exit()
+
     
-    (doThis, todo) = splitArgs(args)
     asset = todo[0]
     if CLSTATUS in doThis:
         status = doThis[CLSTATUS]
@@ -1268,7 +1314,7 @@ def do_identifyStatus(gDict, args):
     iDate = None
     hDate = None
     activity = False
-    y3k   = stime2utime("10/01/3000")
+    y3k   = stime2utime("10-01-3000")
 #    print "maintenant: ", maintenant
     if "from" in todo:
         fDateH = doThis["from"]
@@ -1404,14 +1450,14 @@ def do_identifyStatus(gDict, args):
                 pass
         pass
     elif asset == "pair":
-        if "pairs" in gDict:
-            pairs = gDict["pairs"]
+        if PAIRS in gDict:
+            pairs = gDict[PAIRS]
             mypair = doThis[asset]
             if mypair == "*":
                 for pair in sorted(pairs.keys()):
 #                    showPair(pair, gDict, iDate, hDate)
                     identifyStatus(pair,
-                        gDict["pairs"][pair],
+                        gDict[PAIRS][pair],
                         status, fDate, tDate, verbose)
                 pass
             else:
@@ -1419,7 +1465,7 @@ def do_identifyStatus(gDict, args):
                     if mypair.lower() == pair.lower():
 #                        showPair(pair, gDict, iDate, hDate)
                         identifyStatus(pair,
-                            gDict["pairs"][pair],
+                            gDict[PAIRS][pair],
                             status, fDate, tDate, verbose)
                 pass
 
@@ -1441,7 +1487,7 @@ def showDetector(sensorId,detectorId, gDict, limitUstamp, hDate, activity):
     chist = []
     for h in shist:
         chist.append(h)
-    for h in  det['history']:
+    for h in  det[HISTORY]:
         insert(h, chist)
     if limitUstamp is None:
         print "{:15s} {:8s} +/- {:8s} {:8s} {:8s}".format(dpair, unit,
@@ -1459,13 +1505,13 @@ def showDetector(sensorId,detectorId, gDict, limitUstamp, hDate, activity):
                 error, det["ucd"], status)
 
 def showPair(pair, gDict, limitUstamp, hDate):
-    lePair = gDict["pairs"][pair]
+    lePair = gDict[PAIRS][pair][HISTORY]
     if not liveAt(lePair, limitUstamp):
         print pair, "not active"
         return
     print "Pair ", pair #, lePair, limitUstamp
     showHist({HACTION:"Action", HSTATUS:"Status"}, None)
-    pairs = gDict["pairs"]
+    pairs = gDict[PAIRS]
     for hist in lePair:
         showHist(hist, limitUstamp)
 
@@ -1575,9 +1621,6 @@ def appendSite(site, kv, vk):
 #            print "{:20s} : {} ({})".format(k, site[k], k)
 
 
-def checkArgs0(aktion, args, nmandatory):
-    if len(args) < nmandatory:
-        do_showHelp(gDict, [aktion])
 
 def checkArgs(args, nmandatory):
     if len(args) < nmandatory:
@@ -1588,10 +1631,13 @@ def do_addSitesFromFile(gDict, args):
     """
     Function to collect data about a site from stdin
     """
-    checkArgs(args, 1)
+    (doThis, todo) = splitArgs(args, 1)
+    fail = checkPresence(doThis, ["file"], [])
+    if fail["truth"]:
+        sys.exit()
 
         
-    fileName = args[0]
+    fileName = fail["file"] # todo[0]
     if not os.path.isfile(fileName):
         print fileName, " does not exist. Quiting"
         sys.exit()
@@ -1634,11 +1680,14 @@ def do_createTemplate(gDict, args):
     """
     Function to create input templates for sensors and sites
     """
-    checkArgs(args, 1)
-#    if len(args) == 0:
-#        do_showHelp(gDict, ["getinputtemplate"])
-    (doThis, todo) = splitArgs(args)
-    kind = todo[0]
+#    checkArgs(args, 1)
+#    print actionsHelp["getInputTemplate"]["Args"]
+    (doThis, todo) = splitArgs(args, 1)
+    fail = checkPresence(doThis, ["type"], [])
+    kind = fail["type"] # todo[0]
+    if fail["truth"]:
+        print kind, " makes no sense"
+        sys.exit()
     n = 1
     if "n" in doThis:
         n = int(doThis["n"])
@@ -1656,7 +1705,7 @@ def do_createTemplate(gDict, args):
         "firstdate": "DD-MM-YYYY",
         "energysupply": "solar|mains",
     }
-    hide = ["detector", "epoch.f", "date.l", "epoch.l", "history", "username"]
+    hide = ["listOfDetectors", "detector", "epoch.f", "date.l", "epoch.l", "history", "username"]
     for i in range(0,n):
         print "begin.asset"
         for uf in fields:
@@ -1787,8 +1836,13 @@ def do_addSensorsFromFile(gDict, args):
     Function to collect data about sensors from a file
     """
 
-    checkArgs(args, 1)
-    fileName = args[0]
+#    checkArgs(args, 1)
+    (doThis, todo) = splitArgs(args, 1)
+    fail = checkPresence(doThis, ["file"], [])
+    if fail["truth"]:
+        sys.exit()
+
+    fileName = doThis["file"]
     if not os.path.isfile(fileName):
         print fileName, " does not exist. Quiting"
         sys.exit()
@@ -1871,28 +1925,33 @@ def do_activateSensorInSite(gDict, args):
     """
     Function to attach a sensor to a site
     """
-    checkArgs(args, 3)
+#    checkArgs(args, 3)
+    (doThis, todo) = splitArgs(args, 3)
+    fail = checkPresence(doThis, ["sensor", "site", "date"], [])
+    if fail["truth"]:
+        sys.exit()
 
-    sensorid = args[0].lower()
-    siteid = args[1].lower()
-    date = args[2]
+
+    sensorid = doThis["sensor"].lower()
+    siteid = doThis["site"].lower()
+    date = doThis["date"]
 
     (siteKey, sensorKey) = getSenSite(gDict, sensorid, siteid, date,
                             "activating")
 
     fdu = stime2utime(date)
-    if "pairs" not in gDict:
+    if PAIRS not in gDict:
         print "Pair sensor/site is not present. Doing nothing"
         sys.exit()
-#        gDict["pairs"] = {}
-    pairs = gDict["pairs"]
+#        gDict[PAIRS] = {}
+    pairs = gDict[PAIRS]
     tag = "{}|{}".format(siteKey, sensorKey)
     print "Taking: {} at {} ({}) live on: {} ".format(sensorid,siteid,tag,date)
     if tag not in pairs:
         pairs[tag] = []
     tev = histoire(date,"running", HSTATUS, "on");
 
-    insert(tev, pairs[tag])
+    insert(tev, pairs[tag][HISTORY])
 
 #    stamp = [ tev[TSTAMP] , "attached to {}".format(siteKey)]
 #    gDict[SENSORS][sensorKey][HISTORY].append(stamp)
@@ -1922,17 +1981,19 @@ def getSenSite(gDict, sensorid, siteid, date, what):
     leSite = None
     leSensor = None
     for site in sites.keys():
-        sid = sites[site]["siteid"]
-        if sid.lower() == siteid:
-#            print "site", sid, " located"
+#        print site, siteid, sites[site]
+#        sid = sites[site]["siteid"]
+        if site.lower() == siteid:
+#            print "site", site, siteid, " located"
             siteKey = site
             leSite = sites[site]
             break
             
     for sensor in sensors.keys():
-        sid = sensors[sensor]["sensorid"]
-        if sid.lower() == sensorid:
-#            print "sensor", sid, " located"
+#        print sensor, sensorid
+#        sid = sensors[sensor]["sensorid"]
+        if sensor.lower() == sensorid:
+#            print "sensor", sensor, " located"
             sensorKey = sensor
             leSensor = sensors[sensor]
             break
@@ -1960,27 +2021,35 @@ def do_attachSensorToSite(gDict, args):
     Function to attach a sensor to a site
     """
 #    checkArgs(laAction, args, 3)
-    checkArgs(args, 4)
-    sensorid = args[0].lower()
-    siteid = args[1].lower()
-    hag = args[2]
-    date = args[3]
+#    checkArgs(args, 4)
+    (doThis, todo) = splitArgs(args, 4)
+    fail = checkPresence(doThis, ["sensor","site", "hag", "date"], [])
+    if fail["truth"]:
+        sys.exit()
+    sensorid = doThis["sensor"].lower()
+    siteid = doThis["site"].lower()
+    hag = doThis["hag"]
+    date = doThis["date"]
+    ucSiteId = lcDict["sites"][siteid]
 
     (siteKey, sensorKey) = getSenSite(gDict, sensorid, siteid, date,
     "attaching")
 
     fdu = stime2utime(date)
-    if "pairs" not in gDict:
-        gDict["pairs"] = {}
-    pairs = gDict["pairs"]
+    if PAIRS not in gDict:
+        gDict[PAIRS] = {}
+    pairs = gDict[PAIRS]
     tag = "{}|{}".format(siteKey, sensorKey)
-    print "pairing: ", sensorid, siteid, date, fdu, tag
+    print "pairing: ", sensorid, siteid, date, fdu, "as", tag
     if tag not in pairs:
         pairs[tag] = {"ph":hag, HISTORY:[]}
+#    else:
+#        print tag, "already a valid pair"
+#        sys.exit()
     tev = histoire(date,"attach", HSTATUS, "active");
     insert(tev, pairs[tag][HISTORY])
 
-    tev = histoire(date,"attached to {}".format(siteid), HSTATUS, "active");
+    tev = histoire(date,"attached to {}".format(ucSiteId), HSTATUS, "active");
     insert(tev, gDict[SENSORS][sensorKey][HISTORY])
     msg = "{} installed at {}".format(sensorKey, siteKey)
     event = histoire(date, msg, XDATE, date)
@@ -1998,6 +2067,8 @@ def insert(stamp, aList):
     nTime = stamp[TSTAMP]
     lSize = len(aList)
 #    print "List size", lSize
+#    print aList
+#    print aList[0]
     if lSize == 0:
         aList.append(stamp)
         end = histoire("01-01-3000","theEnd", HSTATUS, "dead")
@@ -2043,7 +2114,7 @@ def insert(stamp, aList):
 #        print "Invalid sensor: ", sensorid
 #    if siteKey is None:
 #        print "Invalid site: ", siteid
-#    pairs = gDict["pairs"]
+#    pairs = gDict[PAIRS]
 #    tag = "{}|{}".format(siteKey, sensorKey)
 #    if tag not in pairs:
 #        print "Combination not in the dictionary: ", tag
@@ -2075,21 +2146,25 @@ def do_detachSensorFromSite(gDict, args):
     """
     Function to detach a sensor from a site
     """
-    checkArgs(args, 3)
-    sensorid = args[0].lower()
-    siteid = args[1].lower()
-    date = args[2]
+#    checkArgs(args, 3)
+    (doThis, todo) = splitArgs(args, 3)
+    fail = checkPresence(doThis, ["sensor","site", "date"], [])
+    if fail["truth"]:
+        sys.exit()
+    sensorid = doThis["sensor"].lower()
+    siteid = doThis["site"].lower()
+    date = doThis["date"]
 
     (siteKey, sensorKey) = getSenSite(gDict, sensorid, siteid, date,
                 "detacching")
 
 
     fdu = stime2utime(date)
-    if "pairs" not in gDict:
+    if PAIRS not in gDict:
         print "No pairs have been defined yet. Doing nothing"
         sys.exit()
-#        gDict["pairs"] = {}
-    pairs = gDict["pairs"]
+#        gDict[PAIRS] = {}
+    pairs = gDict[PAIRS]
     tag = "{}|{}".format(siteKey, sensorKey)
     print "Detaching: ", sensorid, siteid, date, fdu, tag
     if tag not in pairs:
@@ -2110,6 +2185,32 @@ def do_detachSensorFromSite(gDict, args):
     tev = histoire(date,"{} detached".format(sensorKey), HSTATUS, "kaput");
     insert(tev, shist)
 
+def lcClone(gDict):
+    lcd = {}
+    if SITES in gDict:
+        lcd["sites"] = {}
+        lcds = lcd["sites"]
+        for sk in gDict["sites"].keys():
+            lcds[sk.lower()] = sk
+
+    if PAIRS in gDict:
+        lcd[PAIRS] = {}
+        lcdp = lcd[PAIRS]
+        for sk in gDict[PAIRS].keys():
+            lcdp[sk.lower()] = sk
+        pass
+    if SENSORS in gDict:
+        lcd["sensors"] = {}
+        lcd["detectors"] = {}
+        lcdz = lcd["sensors"]
+        lcdd = lcd["detectors"]
+        for sk in gDict["sensors"].keys():
+            ld = gDict["sensors"][sk]["ld"]
+            lcz = sk.lower()
+            lcdz[lcz] = sk
+            for d in ld:
+                lcdd["{},{}".format(lcz, d.lower())] = d
+    return lcd
 
 #  End of the function definitions
 #  main code starts here
@@ -2120,6 +2221,8 @@ if os.path.isfile(assetsFile):
 #    print jsonString
     gDict = json.loads(jsonString)
 #    gDict = json.load(dfile.read())
+    lcDict = lcClone(gDict)
+#    print lcDict
     dfile.close()
 else:
     gDict = {}
@@ -2143,7 +2246,7 @@ functions["addsitesfromfile"] = do_addSitesFromFile;
 # ditto for sensor boxes
 functions["addsensorsfromfile"] = do_addSensorsFromFile;
 
-# Records in the "pairs" and in the "site" history the installation of a sensor
+# Records in the PAIRS and in the "site" history the installation of a sensor
 # box in a given site. Note that this action does not mean that the detectors
 # or the sensor as a whole are marked as producing reliable data.
 # In fact, there can be a gap of several days between the date of the
@@ -2151,12 +2254,12 @@ functions["addsensorsfromfile"] = do_addSensorsFromFile;
 # The sensor/site entry is marked with  "status=active"
 functions["attachsensortosite"] = do_attachSensorToSite;
 
-# Records in the "pairs" and "site" history that a sensor has started
+# Records in the PAIRS and "site" history that a sensor has started
 # gathering reliable data at a given date.
 # The sensor/site entry is marked with  "status=on"
 functions["activatesensorinsite"] = do_activateSensorInSite;
 
-# Records in the "pairs" and "site" history that a sensor has been removed
+# Records in the PAIRS and "site" history that a sensor has been removed
 # from a "site" at a certain date.
 # The sensor/site entry is marked with  "status=off"
 functions["detachsensorfromsite"] = do_detachSensorFromSite;
@@ -2212,9 +2315,13 @@ for key in actionsHelp.keys():
        laKey = key
        break
 if laKey is None:
-    print lcname, "missing from the arguments. Please fix"
+    print lcname, "is not a valid action. Please fix"
+    print lcname, "NSA: No Such Action"
     sys.exit()
 #functions[lcname](arguments[lcname], gDict, args)
+if lcname not in functions:
+    print lcname, "NSA: No Such Action"
+    sys.exit()
 functions[lcname](gDict, args)
 
 assetsLog = open(assetsFile,'w')
