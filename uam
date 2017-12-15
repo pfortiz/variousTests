@@ -982,8 +982,8 @@ def showHist(entry, limit):
     else:
         hrTime = "Date      "
         mrk = " "
-    if CLSTATUS in entry:
-        status = entry[CLSTATUS]
+    if HSTATUS in entry:
+        status = entry[HSTATUS]
     else:
         status = ""
 
@@ -1081,6 +1081,65 @@ def do_showThings(gDict, args):
 #                for entry in pairs[pair]:
 #                    showHist(entry, iDate)
 
+    elif showTime == "asset":
+        dass = lcDict["assets"]
+        asset = doThis[showTime].lower()
+        cs = []
+        if "." in asset:
+            cs = asset.split('.')
+        elif "," in asset:
+            cs = asset.split(',')
+        elif ":" in asset:
+            cs = asset.split(':')
+        print asset, cs
+#        print lcDict
+        if asset in lcDict["assets"].keys():
+            lcN = lcDict["assets"][asset]
+            akind = lcDict["loa"][lcN]
+            pName = lcDict[akind][asset]
+            print asset , lcN, "is a", akind, pName
+            if akind == "sensors":
+                showSensor(pName, gDict, True, iDate, hDate, activity)
+            elif akind == "sites":
+                showSite(pName, gDict, iDate, hDate, activity)
+            elif akind == "detectors":
+                pName = lcDict["detectors"][asset]
+                print "xtra", asset, pName
+                (sid, detectorId) = pName.split(".")
+                showDetector(sid,detectorId, gDict, iDate, hDate, activity)
+            sys.exit()
+        elif len(cs) > 1:
+            print "Unrecognised asset. Decomposing"
+            msk = 0
+            nfound = 0
+            for ac in cs:
+#                print "examining: ", ac
+                if ac in lcDict["assets"].keys():
+                    lcN = lcDict["assets"][ac]
+                    msk |= lcDict["masks"][lcN]
+                    akind = lcDict["loa"][lcN]
+                    nfound += 1
+                    print ac, lcN , "is a", akind, lcDict[akind][ac]
+            
+            print "NFound: ", nfound, msk, nfound
+            if nfound < len(cs):
+                print "not enough valid components for asset:",  asset
+            elif msk == 18:   # a detector on a sensor
+                ndet = "{}.{}".format(cs[1], cs[0])
+                print "Looking for ", ndet, "in ", lcDict["assets"]
+                if ndet in lcDict["assets"]:
+                    print "Eureka.detector: ", ndet
+                pass
+            elif msk ==3:   # a pair
+                npair = "{}.{}".format(cs[1], cs[0])
+                if npair in lcDict["assets"]:
+                    print "Eureka.pair: ", npair
+                pass
+            else:
+                print "Unrecognised asset:",  asset
+        else:
+            print "Unknown asset:",  asset
+        sys.exit()
     elif showTime == "sensor":
         if LISTOFSENSORS in gDict:
             sensors = gDict[LISTOFSENSORS]
@@ -2234,29 +2293,47 @@ def do_detachSensorFromSite(gDict, args):
 
 def lcClone(gDict):
     lcd = {}
+    lcd["assets"] = {}
+    ass_et = lcd["assets"]
+    lcd["loa"] = ["sites", "sensors", "pairs", "detectors", "oq"]
+    lcd["masks"] = [1, 2, 4, 8, 16, 32]
     if SITES in gDict:
         lcd["sites"] = {}
         lcds = lcd["sites"]
         for sk in gDict["sites"].keys():
-            lcds[sk.lower()] = sk
+            lsk = sk.lower()
+            lcds[lsk] = sk
+            ass_et[lsk] = 0
+
 
     if PAIRS in gDict:
         lcd[PAIRS] = {}
         lcdp = lcd[PAIRS]
         for sk in gDict[PAIRS].keys():
-            lcdp[sk.lower()] = sk
+            lsk = sk.lower()
+            lskDot = lsk.replace("|", ".")
+            lcdp[lskDot] = sk
+#            ass_et[lsk] = 2
+            ass_et[lskDot] = 2
         pass
     if SENSORS in gDict:
         lcd["sensors"] = {}
         lcd["detectors"] = {}
+        lcd["oq"] = {}
         lcdz = lcd["sensors"]
         lcdd = lcd["detectors"]
+        lcq = lcd["oq"]
         for sk in gDict["sensors"].keys():
             ld = gDict["sensors"][sk]["ld"]
             lcz = sk.lower()
             lcdz[lcz] = sk
+            ass_et[lcz] = 1
             for d in ld:
-                lcdd["{}.{}".format(lcz, d.lower())] = d
+                dk = "{}.{}".format(lcz, d.lower())
+                lcdd[dk] = "{}.{}".format(sk,d)
+                ass_et[dk] = 3
+                lcq[d.lower()] = d
+                ass_et[d.lower()] = 4
     return lcd
 
 #  End of the function definitions
