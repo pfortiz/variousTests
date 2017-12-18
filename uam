@@ -237,14 +237,17 @@ uam addinfo info=log. Like flag, except that the status of an asset is not
            added. value TBD as of Nov-30,2017
 """
         },
+#uam show sensor=<sensorid>|*   Show data for one sensor or all if * is used
+#uam show site=<siteid>|*       Show data for a site or all if * is used
+#uam show pair=<sensor,site>|*  Show data for a pair sensor + site
     "show": {
         "args": "element [date=x]",
         "short":"Show a particular database element now or at the specified date",
         "long":"""show allows you to examine different aspects of the data.
 Valid entries are:
-uam show sensor=<sensorid>|*   Show data for one sensor or all if * is used
-uam show site=<siteid>|*       Show data for a site or all if * is used
-uam show pair=<sensor,site>|*  Show data for a pair sensor + site
+uam show asset=pattern[*]      Show assets identical to pattern or any in
+                               which pattern is included if the '*' is used
+
 uam show log                   Show the activity as it was entered
 uam show chronology            Show the sequence of operations on sensors,
                                sites, etc
@@ -287,8 +290,8 @@ helpOrder = [
     "attachSensorToSite",
     "detachSensorFromSite",
     "activateSensorInSite",
-    "deactivateSensorInSite",
-    "deactivateSite",
+#    "deactivateSensorInSite",
+#    "deactivateSite",
     "identify",
     "addinfo",
     "rminfo",
@@ -749,8 +752,8 @@ def getSite(sid):
 
 def getPair(sid):
     (sensId, sitId) = sid.split(',')
-    lePair = "{}|{}".format(sitId, sensId)
-    riaPel = "{}|{}".format(sensId, sitId)
+    lePair = "{}.{}".format(sitId, sensId)
+    riaPel = "{}.{}".format(sensId, sitId)
     pairs = lcDict[PAIRS]
     print pairs
     if lePair.lower() in pairs.keys():
@@ -782,14 +785,14 @@ def getDetector(sid):
         return None
     did = "{}.{}".format(sensor["uid"],detId)
     lod = sensor[LISTOFDETECTORS]
-    if did.lower() not in lcDict["detectors"].keys():
+    if did.lower() not in lcDict[DETECTORS].keys():
         print "{} is not a detected quantity in {}".format(detId, sensId)
 #        sys.exit()
         return None
-    detId = lcDict["detectors"][did.lower()]
-    print "Located dectector: ", detId
+    (zid, detId) = lcDict[DETECTORS][did.lower()].split(".")
+#    print "Located dectector: ", detId
     sensor[DETECTORS][detId]["uid"] = "{}.{}".format(sensor["uid"],detId)
-    print "Detector: ", sensor[DETECTORS][detId]
+#    print "Detector: ", sensor[DETECTORS][detId]
 
     return sensor[DETECTORS][detId]
 #    if sid not in gDict[SITES]:
@@ -856,8 +859,8 @@ def showSite(site, gDict, limitUstamp, hDate, activity):
         return
 
     (dkey, revKey) = revert(["site"])
-    print "DK:", dkey
-    print "RK:", revKey
+#    print "DK:", dkey
+#    print "RK:", revKey
 
 #    print "date comparison: ", firstUs, limitUstamp
     if activity:
@@ -1084,62 +1087,94 @@ def do_showThings(gDict, args):
     elif showTime == "asset":
         dass = lcDict["assets"]
         asset = doThis[showTime].lower()
-        cs = []
-        if "." in asset:
-            cs = asset.split('.')
-        elif "," in asset:
-            cs = asset.split(',')
-        elif ":" in asset:
-            cs = asset.split(':')
-        print asset, cs
-#        print lcDict
-        if asset in lcDict["assets"].keys():
-            lcN = lcDict["assets"][asset]
-            akind = lcDict["loa"][lcN]
-            pName = lcDict[akind][asset]
-            print asset , lcN, "is a", akind, pName
-            if akind == "sensors":
-                showSensor(pName, gDict, True, iDate, hDate, activity)
-            elif akind == "sites":
-                showSite(pName, gDict, iDate, hDate, activity)
-            elif akind == "detectors":
-                pName = lcDict["detectors"][asset]
-                print "xtra", asset, pName
-                (sid, detectorId) = pName.split(".")
-                showDetector(sid,detectorId, gDict, iDate, hDate, activity)
-            sys.exit()
-        elif len(cs) > 1:
-            print "Unrecognised asset. Decomposing"
-            msk = 0
-            nfound = 0
-            for ac in cs:
-#                print "examining: ", ac
-                if ac in lcDict["assets"].keys():
-                    lcN = lcDict["assets"][ac]
-                    msk |= lcDict["masks"][lcN]
-                    akind = lcDict["loa"][lcN]
-                    nfound += 1
-                    print ac, lcN , "is a", akind, lcDict[akind][ac]
-            
-            print "NFound: ", nfound, msk, nfound
-            if nfound < len(cs):
-                print "not enough valid components for asset:",  asset
-            elif msk == 18:   # a detector on a sensor
-                ndet = "{}.{}".format(cs[1], cs[0])
-                print "Looking for ", ndet, "in ", lcDict["assets"]
-                if ndet in lcDict["assets"]:
-                    print "Eureka.detector: ", ndet
-                pass
-            elif msk ==3:   # a pair
-                npair = "{}.{}".format(cs[1], cs[0])
-                if npair in lcDict["assets"]:
-                    print "Eureka.pair: ", npair
-                pass
-            else:
-                print "Unrecognised asset:",  asset
-        else:
-            print "Unknown asset:",  asset
+        found = False
+        wc = False
+        if "*" in asset:
+            wc = True
+            asset = doThis[showTime].lower().replace("*","")
+        for key in lcDict["assets"].keys():
+            if asset  == key or (wc and asset in key):
+                found = True
+                lcN = lcDict["assets"][key]
+                akind = lcDict["loa"][lcN]
+#                print asset, key , lcN, "is a", akind # pName
+#                print lcDict
+                pName = lcDict[akind][key]
+                if akind == SENSORS:
+                    showSensor(pName, gDict, True, iDate, hDate, activity)
+                elif akind == SITES:
+                    showSite(pName, gDict, iDate, hDate, activity)
+                elif akind == DETECTORS:
+#                    print "xtra", akind, key, pName
+                    pName = lcDict[DETECTORS][key]
+                    (sid, detectorId) = pName.split(".")
+                    showDetector(sid, detectorId, gDict, iDate, hDate, activity)
+                elif akind == PAIRS:
+#                    print "ThisIsAPair"
+                    showPair(pName, gDict, iDate, hDate)
+        if not found:
+            print "asset {} not found".format(doThis["asset"])
         sys.exit()
+        
+#
+#        cs = decodeAsset(asset)
+#        print asset, cs
+##        print lcDict
+#        if asset in lcDict["assets"].keys():
+#            lcN = lcDict["assets"][asset]
+#            akind = lcDict["loa"][lcN]
+#            pName = lcDict[akind][asset]
+#            print asset , lcN, "is a", akind, pName
+#            if akind == "sensors":
+#                showSensor(pName, gDict, True, iDate, hDate, activity)
+#            elif akind == "sites":
+#                showSite(pName, gDict, iDate, hDate, activity)
+#            elif akind == "detectors":
+#                pName = lcDict[DETECTORS][asset]
+#                print "xtra", asset, pName
+#                (sid, detectorId) = pName.split(".")
+#                showDetector(sid, detectorId, gDict, iDate, hDate, activity)
+#            elif akind == "pairs":
+#                print "ThisIsAPair"
+#                showPair(pName, gDict, iDate, hDate)
+#            sys.exit()
+#        elif len(cs) > 1:
+#            print "Unrecognised asset. Decomposing"
+#            msk = 0
+#            nfound = 0
+#            nwc = 0
+#            for ac in cs:
+##                print "examining: ", ac
+#                if ac in lcDict["assets"].keys():
+#                    lcN = lcDict["assets"][ac]
+#                    msk |= lcDict["masks"][lcN]
+#                    akind = lcDict["loa"][lcN]
+#                    nfound += 1
+#                    print ac, lcN , "is a", akind, lcDict[akind][ac]
+#                elif ac == "*":
+#                    print "wildcard used"
+#                    nwc += 1
+#            
+#            print "NFound: ", nfound, msk, nfound
+#            if nfound + nwc < len(cs):
+#                print "not enough valid components for asset:",  asset
+#            elif msk == 18:   # a detector on a sensor
+#                ndet = "{}.{}".format(cs[1], cs[0])
+#                print "Looking for ", ndet, "in ", lcDict["assets"]
+#                if ndet in lcDict["assets"]:
+#                    print "Eureka.detector: ", ndet
+#                pass
+#            elif msk ==3:   # a pair
+#                npair = "{}.{}".format(cs[1], cs[0])
+#                if npair in lcDict["assets"]:
+#                    print "Eureka.pair: ", npair
+#                pass
+#            else:
+#                print "Unrecognised asset:",  asset
+#        else:
+#            print "Unknown asset:",  asset
+#        sys.exit()
+
     elif showTime == "sensor":
         if LISTOFSENSORS in gDict:
             sensors = gDict[LISTOFSENSORS]
@@ -1201,7 +1236,12 @@ def do_showThings(gDict, args):
         # for *,detectorID or 
         # for *,*
         mydet = doThis[showTime]
-        (sensorId, detectorId) = mydet.split(",")
+#        import re
+#        parts = re.findall(r"[\w']+", mydet)
+#        print parts
+        cs = decodeAsset(mydet)
+#        (sensorId, detectorId) = mydet.split(sep)
+        (sensorId, detectorId) = (cs[0].lower(), cs[1].lower())
         if iDate is None:
             print "Info for {} ".format( mydet)
         else:
@@ -1214,6 +1254,7 @@ def do_showThings(gDict, args):
                     for det in dets.keys():
                         showDetector(sid,det, gDict, iDate, hDate, activity)
             else:
+                detectorId = lcDict[DETECTORS][detectorId]
                 for sid in sensors.keys():
                     dets = sensors[sid][DETECTORS]
 #                    print dets
@@ -1222,9 +1263,10 @@ def do_showThings(gDict, args):
                     showDetector(sid,detectorId, gDict, iDate, hDate, activity)
                 pass
         else:
+            sensorId = lcDict[SENSORS][sensorId]
             if sensorId not in sensors:
                 print "Beep... {} not a valid sensor".format(sensorId)
-                sys.exit
+                sys.exit()
             if detectorId == "*":
                 sid = sensors[sensorId]
                 dets = sid[DETECTORS]
@@ -1232,6 +1274,8 @@ def do_showThings(gDict, args):
                 for det in dets.keys():
                     showDetector(sensorId,det, gDict, iDate, hDate, activity)
             else:
+#                print lcDict[DETECTORS]
+                detectorId = lcDict[DETECTORS][detectorId]
                 dets = sensors[sensorId][DETECTORS]
 #               print dets
                 if detectorId not in dets:
@@ -1241,17 +1285,30 @@ def do_showThings(gDict, args):
         pass
     elif showTime == "pair":
         if PAIRS in gDict:
-            pairs = gDict[PAIRS]
-            mypair = doThis[showTime]
+            pairs = lcDict[PAIRS]
+            mypair = doThis[showTime].replace(",",".").replace(":",".")
             if mypair == "*":
                 for pair in sorted(pairs.keys()):
-                    showPair(pair, gDict, iDate, hDate)
+                    showPair(pairs[pair], gDict, iDate, hDate)
                 pass
             else:
-                for pair in sorted(pairs.keys()):
-                    if mypair.lower() == pair.lower():
-                        showPair(pair, gDict, iDate, hDate)
+                if mypair in pairs:
+                    for pair in sorted(pairs.keys()):
+                        if mypair.lower() == pair.lower():
+                            showPair(lcDict[PAIRS][pair], gDict, iDate, hDate)
+                else:
+                    # here, we need to see if the second component is '*'
+                    found = False
+                    for pair in sorted(pairs.keys()):
+                        q = mypair.lower().replace("*","").replace(".","")
+                        if q in pair.lower():
+                            showPair(lcDict[PAIRS][pair], gDict, iDate, hDate)
+                            found = True
+                    if not found:
+                        print mypair, "not in", pairs.keys()
                 pass
+        else:
+            print "No pairs defined yet"
 
     elif showTime == "activity":
         # show the active period for an asset or all assets if no argument
@@ -1309,6 +1366,16 @@ def do_showThings(gDict, args):
         print "unrecognised operation: ", showTime
 
     sys.exit()
+
+def decodeAsset(asset):
+    ac = []
+    if "." in asset:
+        ac = asset.split('.')
+    elif "," in asset:
+        ac = asset.split(',')
+    elif ":" in asset:
+        ac = asset.split(':')
+    return ac
 
 def identifyStatus(asset, history, stvalue, fDate, tDate, verbus):
     """
@@ -2049,7 +2116,7 @@ def do_activateSensorInSite(gDict, args):
         sys.exit()
 #        gDict[PAIRS] = {}
     pairs = gDict[PAIRS]
-    tag = "{}|{}".format(siteKey, sensorKey)
+    tag = "{}.{}".format(siteKey, sensorKey)
     print "Taking: {} at {} ({}) live on: {} ".format(sensorid,siteid,tag,date)
     if tag not in pairs:
         pairs[tag] = []
@@ -2143,10 +2210,11 @@ def do_attachSensorToSite(gDict, args):
     if PAIRS not in gDict:
         gDict[PAIRS] = {}
     pairs = gDict[PAIRS]
-    tag = "{}|{}".format(siteKey, sensorKey)
+    tag = "{}.{}".format(siteKey, sensorKey)
     print "pairing: ", sensorid, siteid, date, fdu, "as", tag
     if tag not in pairs:
         pairs[tag] = {"ph":hag, HISTORY:[]}
+#    print "carry on"
 #    else:
 #        print tag, "already a valid pair"
 #        sys.exit()
@@ -2271,7 +2339,7 @@ def do_detachSensorFromSite(gDict, args):
         sys.exit()
 #        gDict[PAIRS] = {}
     pairs = gDict[PAIRS]
-    tag = "{}|{}".format(siteKey, sensorKey)
+    tag = "{}.{}".format(siteKey, sensorKey)
     print "Detaching: ", sensorid, siteid, date, fdu, tag
     if tag not in pairs:
         # this should be an error, it should not be possible to detach a
@@ -2295,12 +2363,12 @@ def lcClone(gDict):
     lcd = {}
     lcd["assets"] = {}
     ass_et = lcd["assets"]
-    lcd["loa"] = ["sites", "sensors", "pairs", "detectors", "oq"]
+    lcd["loa"] = [SITES, SENSORS, PAIRS, DETECTORS, "oq"]
     lcd["masks"] = [1, 2, 4, 8, 16, 32]
     if SITES in gDict:
-        lcd["sites"] = {}
-        lcds = lcd["sites"]
-        for sk in gDict["sites"].keys():
+        lcd[SITES] = {}
+        lcds = lcd[SITES]
+        for sk in gDict[SITES].keys():
             lsk = sk.lower()
             lcds[lsk] = sk
             ass_et[lsk] = 0
@@ -2317,20 +2385,21 @@ def lcClone(gDict):
             ass_et[lskDot] = 2
         pass
     if SENSORS in gDict:
-        lcd["sensors"] = {}
-        lcd["detectors"] = {}
+        lcd[SENSORS] = {}
+        lcd[DETECTORS] = {}
         lcd["oq"] = {}
-        lcdz = lcd["sensors"]
-        lcdd = lcd["detectors"]
+        lcdz = lcd[SENSORS]
+        lcdd = lcd[DETECTORS]
         lcq = lcd["oq"]
-        for sk in gDict["sensors"].keys():
-            ld = gDict["sensors"][sk]["ld"]
+        for sk in gDict[SENSORS].keys():
+            ld = gDict[SENSORS][sk]["ld"]
             lcz = sk.lower()
             lcdz[lcz] = sk
             ass_et[lcz] = 1
             for d in ld:
                 dk = "{}.{}".format(lcz, d.lower())
                 lcdd[dk] = "{}.{}".format(sk,d)
+                lcdd[d.lower()] = d
                 ass_et[dk] = 3
                 lcq[d.lower()] = d
                 ass_et[d.lower()] = 4
