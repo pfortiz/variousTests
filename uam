@@ -58,7 +58,7 @@ alora = str(datetime.datetime.now())
 dt = alora.split()
 laDate = int(dt[0].replace("-", ""))
 idf = "%d-%m-%Y";
-idtf = '%Y-%m-%dT%H:%M:%S'
+idtf = '%d-%m-%YT%H:%M:%S'
 heute = time.strftime("%d-%m-%Y")
 #print alora, laDate, heute
 hms = dt[1].split(":")
@@ -89,17 +89,30 @@ CLSTATUS = "status"
 HSTATUS = "hS"
 PAIRS = "pairs"
 
+# Change this one if working on a project with a different starting date
+time_offset = str(datetime.datetime(2015, 1, 1))
+tOffsetDef = time.mktime(datetime.datetime.strptime(time_offset, "%Y-%m-%d %H:%M:%S").timetuple())
+
+
+
+#print "Time offset: ", time_offset, tOffset
+
 def histoire(hstamp, action, key, value):
     hist = {}
 #    hist["hrStamp"] = hstamp
     # hist[TSTAMP] = stime2utime(hstamp)
     if not hstamp is None:
-        hist[TSTAMP] = time.mktime(datetime.datetime.strptime(hstamp, idf).timetuple())
-    hist[LOGTIME] = time.time()
+        if "T" in hstamp:
+            tfmt = idtf
+        else:
+            tfmt = idf
+        hist[TSTAMP] = time.mktime(datetime.datetime.strptime(hstamp, tfmt).timetuple()) - tOffset
+    hist[LOGTIME] = time.time() - tOffset
 #    hist["hrLogTime"] = str(datetime.datetime.now())
     hist[HACTION] = action
-    hist[key] = value
-    hist["hu"] = uname
+    if key != XDATE or hstamp != value:
+        hist[key] = value
+#    hist["hu"] = uname
     return hist
 
 #handles = {
@@ -416,7 +429,12 @@ ucds = {
 #}
 
 def stime2utime(stime):
-    return time.mktime(datetime.datetime.strptime(stime, idf).timetuple())
+#    print "Stime: ", stime
+    if "T" in stime:
+        fmt = idtf
+    else:
+        fmt = idf
+    return time.mktime(datetime.datetime.strptime(stime, fmt).timetuple()) - tOffset
 
 def histKiller(obj, tag):
     qtag = "{:.6f}".format(float(tag))
@@ -906,6 +924,7 @@ def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
 
     # date detection should occur here
     if activity:
+#        print "Activity on"
         k = HISTORY
         hist = leSensor[k]
         print " {}.{}:".format(sensor, k)
@@ -971,8 +990,8 @@ def showHist(entry, limit):
     method to show history items
     """
     if TSTAMP in entry:
-        etime = entry[TSTAMP]
-        tag = entry[LOGTIME]
+        etime = entry[TSTAMP] + tOffset
+        tag = entry[LOGTIME] + tOffset
         if limit is None:
             mrk = " "
         elif etime < limit:
@@ -1208,8 +1227,20 @@ def do_showThings(gDict, args):
         if LOGGER in gDict:
             logs = gDict[LOGGER]
             for log in logs:
-                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME])).strftime('%a %d-%m-%Y %H:%M:%S.%fZ')
-                print hrTime, log[HACTION], "on", log[XDATE]
+                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME] + tOffset)).strftime('%a %d-%m-%Y %H:%M:%SZ')
+                if TSTAMP in log:
+                    ts = int(log[TSTAMP] + tOffset)
+                    rem = ts%86400
+                    if rem == 0:
+                        hrXtime = datetime.datetime.fromtimestamp( float(ts )).strftime('%a %d-%m-%Y')
+                    else:
+                        hrXtime = datetime.datetime.fromtimestamp( float(ts)).strftime('%a %d-%m-%YT%H:%M:%S')
+                else:
+                    hrXtime = None
+                    ts = None
+                    rem = None
+#                print hrTime, log[HACTION], "on", log[XDATE]
+                print hrTime, log[HACTION], "@", hrXtime
         pass
 
     elif showTime == "chronology":
@@ -1224,8 +1255,21 @@ def do_showThings(gDict, args):
 
             for logk in sorted(tdic.keys()):
                 log = tdic[logk]
-                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME])).strftime('%a %d-%m-%Y %H:%M:%S.%fZ')
-                print hrTime, log[HACTION], "on", log[XDATE]
+                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME] + tOffset)).strftime('%a %d-%m-%Y %H:%M:%S.%fZ')
+                if TSTAMP in log:
+                    ts = int(log[TSTAMP] + tOffset)
+                    rem = ts%86400
+                    if rem == 0:
+                        hrXtime = datetime.datetime.fromtimestamp( float(ts )).strftime('%a %d-%m-%Y')
+                    else:
+                        hrXtime = datetime.datetime.fromtimestamp( float(ts)).strftime('%a %d-%m-%YT%H:%M:%S')
+                else:
+                    hrXtime = None
+                    ts = None
+                    rem = None
+
+#                print hrTime, log[HACTION], "on", log[XDATE], ts, rem, hrXtime
+                print hrTime, log[HACTION], "@", hrXtime
         pass
 
     elif showTime == "detector":
@@ -1386,11 +1430,11 @@ def identifyStatus(asset, history, stvalue, fDate, tDate, verbus):
     intervals = []
     pair = []
     for h in history:
-        th = h[TSTAMP]
+        th = h[TSTAMP] #+ tOffset
 
         sth = h[HSTATUS]
         if verbus:
-            print asset, fDate, h[TSTAMP], tDate, sth
+            print asset, fDate + tOffset, h[TSTAMP] + tOffset, tDate + tOffset, sth
         if sth == stvalue:
             pair = []
             pair.append(th)
@@ -1413,8 +1457,8 @@ def identifyStatus(asset, history, stvalue, fDate, tDate, verbus):
                 i[1] = tDate
         elif i[1] > tDate:
             i[1] = tDate
-        t0 = datetime.datetime.fromtimestamp( int(i[0])).strftime('%d-%m-%Y')
-        t1 = datetime.datetime.fromtimestamp( int(i[1])).strftime('%d-%m-%Y')
+        t0 = datetime.datetime.fromtimestamp( int(i[0]+tOffset)).strftime('%d-%m-%Y')
+        t1 = datetime.datetime.fromtimestamp( int(i[1]+tOffset)).strftime('%d-%m-%Y')
 #        print i[0], i[1]
         print asset, t0, t1, stvalue
 
@@ -1426,6 +1470,7 @@ def do_identifyStatus(gDict, args):
 #    if len(args) == 0:
 #        do_showHelp(gDict, ["identify"])
     (doThis, todo) = splitArgs(args, 2)
+#    print "going to check..."
     fail = checkPresence(doThis, [CLSTATUS], ["sensor","site","pair", "detector"])
     if fail["truth"]:
         sys.exit()
@@ -1463,14 +1508,13 @@ def do_identifyStatus(gDict, args):
 
     if asset == "sensor":
         if LISTOFSENSORS in gDict:
-            sensors = gDict[LISTOFSENSORS]
-            print "sensors list: ", sensors
+            sensors = lcDict[LISTOFSENSORS]
             mysensor = doThis[asset]
             if mysensor == "*":
                 theSensors = sensors
             else:
-                if mysensor in sensors:
-                    theSensors = [ mysensor ]
+                if mysensor.lower() in sensors:
+                    theSensors = [ sensors[mysensor.lower() ]  ]
                 else:
                     print mysensor, "is not recognised as a sensor"
                     sys.exit()
@@ -1481,17 +1525,20 @@ def do_identifyStatus(gDict, args):
             
     elif asset == "site":
         if LISTOFSITES in gDict:
-            sites = gDict[LISTOFSITES]
-            mysite = doThis[asset]
+            sites = lcDict[LISTOFSITES]
+#            print "Sites: ", sites
+            mysite = doThis[asset].lower()
+            theSites = []
             if mysite == "*":
                 theSites = sites
             else:
                 if mysite in sites:
-                    theSites = [ mysite ]
+#                    print sites[mysite]
+                    theSites = [ sites[mysite] ]
                 else:
                     print mysite, "is not recognised as a site"
                     sys.exit()
-            for site in sites:
+            for site in theSites:
 #                showSite(site, gDict, iDate, hDate, activity)
                 identifyStatus(site, gDict[SITES][site][HISTORY],
                             status, fDate, tDate, verbose)
@@ -1501,42 +1548,72 @@ def do_identifyStatus(gDict, args):
     elif asset == "detector":
         # we show information for a single detector in the form MOT720,TEMP
         # ie, 
-        # for sensorID,detectorID or
-        # for sensorID,*  or
-        # for *,detectorID or 
-        # for *,*
-        mydet = doThis[asset]
-        (sensorId, detectorId) = mydet.split(",")
+        # for sensorID.detectorID or
+        # for sensorID.*  or
+        # for *.detectorID or 
+        # for *.*
+        mydet = doThis[asset].lower()
+        if "*" in mydet:
+            wcDet = mydet.replace("*","")
+            dets = lcDict[DETECTORS]
+            for d in dets.keys():
+                if wcDet in d:
+                    if "." not in d:
+                        continue
+#                    print "Got a match 1: ", wcDet, d
+                    gDet = dets[d]
+                    (tSens, tDet) = gDet.split(".")
+#                    print "Got a match 2: ", wcDet, d, gDet, tSens, tDet
+                    shist = gDict[SENSORS][tSens][HISTORY]
+#                    dets = gDict[SENSORS][tSens][DETECTORS]
+                    dHist = []
+                    for h in shist:
+                        dHist.append(h)
+                    for h in gDict[SENSORS][tSens][DETECTORS][tDet][HISTORY]:
+                            insert(h, dHist)
+                    identifyStatus(gDet,
+                                dHist, status, fDate, tDate, verbose)
+            sys.exit()
+
+        (sensorId, detectorId) = mydet.split(".")
         if iDate is None:
             print "Info for {} ".format( mydet)
         else:
             print "Status for {} on {}".format( mydet, hDate)
-        sensors = gDict[SENSORS]
+        sensors = lcDict[SENSORS]
+        gSensors = gDict[SENSORS]
         if sensorId == "*":
             if detectorId == "*":
                 for sid in sensors.keys():
-                    dets = sensors[sid][DETECTORS]
-                    shist = gDict[SENSORS][sid][HISTORY]
+                    tSens = sensors[sid]
+                    shist = gDict[SENSORS][tSens][HISTORY]
+                    dets = gSensors[tSens][DETECTORS]
                     for det in dets.keys():
 #                        showDetector(sid,det, gDict, iDate, hDate, activity)
                         dHist = []
                         for h in shist:
                             dHist.append(h)
-                        for h in gDict[SENSORS][sid][DETECTORS][det][HISTORY]:
+                        for h in gDict[SENSORS][tSens][DETECTORS][det][HISTORY]:
                             insert(h, dHist)
                         identifyStatus("{}.{}".format(sid,det),
                                 dHist, status, fDate, tDate, verbose)
             else:
                 for sid in sensors.keys():
-                    shist = gDict[SENSORS][sid][HISTORY]
-                    dets = sensors[sid][DETECTORS]
-#                    print dets
-                    if detectorId not in dets:
+                    tSens = sensors[sid]
+                    gSensor = gDict[SENSORS][ tSens ]
+                    shist = gSensor[HISTORY]
+#                    print lcDict
+                    dets = lcDict[DETECTORS]
+                    leDet = "{}.{}".format(sid,detectorId)
+                    if leDet not in dets:
                         print "Beep... {} not a valid detector".format(detectorId)
+                        sys.exit()
+                    detc = dets[detectorId]
+#                    print detc, dets
                     dHist = []
                     for h in shist:
                         dHist.append(h)
-                    for h in gDict[SENSORS][sid][DETECTORS][detectorId][HISTORY]:
+                    for h in gDict[SENSORS][tSens][DETECTORS][detc][HISTORY]:
                         insert(h, dHist)
 #                    showDetector(sid,detectorId, gDict, iDate, hDate, activity)
                     identifyStatus("{}.{}".format(sid,detectorId),
@@ -1545,33 +1622,36 @@ def do_identifyStatus(gDict, args):
         else:
             if sensorId not in sensors:
                 print "Beep... {} not a valid sensor".format(sensorId)
-                sys.exit
-            shist = gDict[SENSORS][sensorId][HISTORY]
+                sys.exit()
+            leSensor = sensors[sensorId]
+            gSensor = gDict[SENSORS][leSensor]
+            shist = gSensor[HISTORY]
             if detectorId == "*":
-                sid = sensors[sensorId]
-                dets = sid[DETECTORS]
+#                sid = gDict[SENSORS][leSensor]
+                dets = gSensor[DETECTORS]
 #                print dets
                 for det in dets.keys():
                     dHist = []
                     for h in shist:
                         dHist.append(h)
-                    for h in gDict[SENSORS][sensorId][DETECTORS][det][HISTORY]:
+                    for h in gDict[SENSORS][leSensor][DETECTORS][det][HISTORY]:
                         insert(h, dHist)
 #                    showDetector(sensorId,det, gDict, iDate, hDate, activity)
-                    identifyStatus("{}.{}".format(sensorId,det),
+                    identifyStatus("{}.{}".format(leSensor,det),
                              dHist, status, fDate, tDate, verbose)
             else:
-                dets = sensors[sensorId][DETECTORS]
+#                dets = sensors[sensorId][DETECTORS]
+                dets = lcDict[DETECTORS]
 #               print dets
                 if detectorId not in dets:
                     print "Beep... {} not a valid detector".format(detectorId)
                 dHist = []
                 for h in shist:
                     dHist.append(h)
-                for h in gDict[SENSORS][sensorId][DETECTORS][detectorId][HISTORY]:
+                for h in gDict[SENSORS][leSensor][DETECTORS][dets[detectorId]][HISTORY]:
                     insert(h, dHist)
 #               showDetector(sensorId,detectorId, gDict, iDate, hDate, activity)
-                identifyStatus("{}.{}".format(sensorId,detectorId),
+                identifyStatus("{}.{}".format(leSensor,dets[detectorId]),
                     dHist, status, fDate, tDate, verbose)
                 pass
         pass
@@ -1581,18 +1661,27 @@ def do_identifyStatus(gDict, args):
             mypair = doThis[asset]
             if mypair == "*":
                 for pair in sorted(pairs.keys()):
-#                    showPair(pair, gDict, iDate, hDate)
+#                    print gDict[PAIRS][pair][HISTORY]
                     identifyStatus(pair,
-                        gDict[PAIRS][pair],
+                        gDict[PAIRS][pair][HISTORY],
                         status, fDate, tDate, verbose)
                 pass
             else:
-                for pair in sorted(pairs.keys()):
-                    if mypair.lower() == pair.lower():
-#                        showPair(pair, gDict, iDate, hDate)
-                        identifyStatus(pair,
-                            gDict[PAIRS][pair],
-                            status, fDate, tDate, verbose)
+                if "*" in mypair:
+                    lePair = mypair.lower().replace("*","")
+                    for pair in sorted(pairs.keys()):
+                        if lePair in pair.lower():
+    #                        showPair(pair, gDict, iDate, hDate)
+                            identifyStatus(pair,
+                                gDict[PAIRS][pair][HISTORY],
+                                status, fDate, tDate, verbose)
+                else:
+                    for pair in sorted(pairs.keys()):
+                        if mypair.lower() == pair.lower():
+    #                        showPair(pair, gDict, iDate, hDate)
+                            identifyStatus(pair,
+                                gDict[PAIRS][pair][HISTORY],
+                                status, fDate, tDate, verbose)
                 pass
 
     else:
@@ -1726,12 +1815,12 @@ def appendSite(site, kv):
     if site[firstDate] == "today":
         site[firstDate] =  time.strftime(idf)
 
-    sepoch = time.mktime(datetime.datetime.strptime(site[firstDate], idf).timetuple())
+#    sepoch = time.mktime(datetime.datetime.strptime(site[firstDate], idf).timetuple())
     sdft =  site[firstDate]
 #    sdu = str(datetime.datetime(int(sd[2]), int(sd[1]), int(sd[0])))
     sdu = stime2utime(sdft)
 #    print "sdu = ", sdu, " utime: ", sepoch
-    site[kv["epoch.f"]] = sepoch
+    site[kv["epoch.f"]] = sdu
     site[kv["date.l"]] = "01-01-3000"
 #    fd =  site["date.l"].split("/")
 #    fdu = str(datetime.datetime(int(fd[2]), int(fd[1]), int(fd[0])))
@@ -1937,12 +2026,12 @@ def appendSensor(sensor, kv):
     if sensor[firstdate] == "today":
         sensor[firstdate] =  time.strftime(idf)
 
-    sepoch = time.mktime(datetime.datetime.strptime(sensor[firstdate], idf).timetuple())
+#    sepoch = time.mktime(datetime.datetime.strptime(sensor[firstdate], idf).timetuple())
     sdft =  sensor[firstdate]
 #    sdu = str(datetime.datetime(int(sd[2]), int(sd[1]), int(sd[0])))
     sdu = stime2utime(sdft)
 #    print "sdu = ", sdu, " utime: ", sepoch
-    sensor[kv["epoch.f"]] = sepoch
+    sensor[kv["epoch.f"]] = sdu
     sensor[kv["date.l"]] = "01-01-3000"
 #    fd =  sensor["date.l"].split("/")
 #    fdu = str(datetime.datetime(int(fd[2]), int(fd[1]), int(fd[0])))
@@ -2367,9 +2456,11 @@ def lcClone(gDict):
     lcd["masks"] = [1, 2, 4, 8, 16, 32]
     if SITES in gDict:
         lcd[SITES] = {}
+        lcd[LISTOFSITES] = {}
         lcds = lcd[SITES]
         for sk in gDict[SITES].keys():
             lsk = sk.lower()
+            lcd[LISTOFSITES][lsk] = sk
             lcds[lsk] = sk
             ass_et[lsk] = 0
 
@@ -2386,14 +2477,17 @@ def lcClone(gDict):
         pass
     if SENSORS in gDict:
         lcd[SENSORS] = {}
+        lcd[LISTOFSENSORS] = {}
         lcd[DETECTORS] = {}
         lcd["oq"] = {}
         lcdz = lcd[SENSORS]
         lcdd = lcd[DETECTORS]
+        los = lcd[LISTOFSENSORS]
         lcq = lcd["oq"]
         for sk in gDict[SENSORS].keys():
             ld = gDict[SENSORS][sk]["ld"]
             lcz = sk.lower()
+            los[sk.lower()] = sk
             lcdz[lcz] = sk
             ass_et[lcz] = 1
             for d in ld:
@@ -2419,12 +2513,14 @@ if os.path.isfile(assetsFile):
     dfile.close()
 else:
     gDict = {}
+    gDict["time-offset"] = tOffsetDef
 #    gDict[LISTOFSITES] = []
 #    gDict[SITES] = {}
 #    gDict[LISTOFSENSORS] = []
 #    gDict[SENSORS] = {}
     gDict[LOGGER] = []
 
+tOffset = gDict["time-offset"] 
 
 functions = {}
 # the next two functions are being deprecated as of Dec 7, 2017  PH+76
