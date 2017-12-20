@@ -9,18 +9,6 @@
 # web-interface for any particular point in the time-line.
 
 
-# variables:
-# siteId (char array)
-# sensorId (integer)
-# timeStamp (integer)
-# Carbon Monoxide
-# Nitric Oxide
-# Nitrogen Dioxide
-# Relative Humidity
-# Temperature
-# Battery
-# Noise
-
 # string timestamp not incorporated into binary file.
 #
 #UoS_AJ_702 100702 2016/10/30T00:05:08 1477782308 0.61 1.43 30.04 81.70 12.60 3.55 57.00
@@ -70,6 +58,7 @@ epoch = datetime.datetime(1970, 1, 1)
 #print "epoch = " , epoch
 assetsFile = "/Users/Shared/ufloTables/assets.db"
 lcDict = {}
+hStat = {}
 HISTORY = "h"
 LOGGER = "log"
 XDATE = "xdate"
@@ -89,6 +78,17 @@ CLSTATUS = "status"
 HSTATUS = "hS"
 PAIRS = "pairs"
 
+H_TSTAMP = 0
+H_LSTAMP = 1
+H_MESSGE = 2
+H_STATUS = 3
+H_USRNME = 4
+
+L_TSTAMP = 0
+L_LTIME  = 1
+L_ACTION = 2
+hLabel = [None, None, "Action", "Status"]
+
 # Change this one if working on a project with a different starting date
 time_offset = str(datetime.datetime(2015, 1, 1))
 tOffsetDef = time.mktime(datetime.datetime.strptime(time_offset, "%Y-%m-%d %H:%M:%S").timetuple())
@@ -97,7 +97,7 @@ tOffsetDef = time.mktime(datetime.datetime.strptime(time_offset, "%Y-%m-%d %H:%M
 
 #print "Time offset: ", time_offset, tOffset
 
-def histoire(hstamp, action, key, value):
+def alt_histoire(hstamp, action, key, value):
     hist = {}
 #    hist["hrStamp"] = hstamp
     # hist[TSTAMP] = stime2utime(hstamp)
@@ -108,45 +108,41 @@ def histoire(hstamp, action, key, value):
             tfmt = idf
         hist[TSTAMP] = time.mktime(datetime.datetime.strptime(hstamp, tfmt).timetuple()) - tOffset
     hist[LOGTIME] = time.time() - tOffset
-#    hist["hrLogTime"] = str(datetime.datetime.now())
     hist[HACTION] = action
     if key != XDATE or hstamp != value:
         hist[key] = value
 #    hist["hu"] = uname
     return hist
 
-#handles = {
-#        "siteid" : "site ID",
-#        "address" : "Street Address",
-#        "lon" : "longitude [deg]",
-#        "lat" : "latitude [deg]",
-#        "hag" : "Height above ground [m]",
-#        "hasl" : "height above sea level [m]",
-#        "zip" : "Postal Code",
-#        "city" : "City",
-#        "country" : "Country",
-#        "firstdate" : "Start Date DD-MM-YYYY",
-#        "operator" : "Operated by",
-#        "sensorid" : "Sensor ID",
-#
-#        "provider" : "Sensor provider name",
-#        "nquantities" : "Number of quantities measured",
-#        "qname" : "Quantity measured",
-#        "qunits" : "Quantity units",
-#        "quncertainty" : "Quantity uncertainty",
-#        "qucd" : "Quantity associated UCD",
-#        "serialnumber" : "Sensor serial number",
-#
-#        "ifilename" : "Input file name",
-#}
+def histoire(hstamp, action, status):
+    if hstamp is None:
+        print "Timestamp is None???"
+        h_t = None
+    else:
+        if "T" in hstamp:
+            tfmt = idtf
+        else:
+            tfmt = idf
+        h_t = time.mktime(datetime.datetime.strptime(hstamp, tfmt).timetuple()) - tOffset
+    l_t = time.time() - tOffset
+#    hist = [h_t, l_t, action, status, uname]
+    hist = [h_t, l_t, action, status]
+    return hist
 
+def ulogger(hstamp, message):
+    if not hstamp is None:
+        if "T" in hstamp:
+            tfmt = idtf
+        else:
+            tfmt = idf
+        h_t = time.mktime(datetime.datetime.strptime(hstamp, tfmt).timetuple()) - tOffset
+    else:
+        h_t = None
+    l_t = time.time() - tOffset
+#    hist = [h_t, l_t, message, uname]
+    hist = [h_t, l_t, message]
+    return hist
 
-
-#actions = ["addSite", "addSitesFromFile",
-#            "addSensor", "addSensorsFromFile",
-#            "attachSensorToSite", "detachSensorFromSite",
-#            "showSensorSite",
-#            "addMaintenance", "terminate"];
 
 
 actionsHelp = {
@@ -310,11 +306,6 @@ helpOrder = [
     "rminfo",
     "show",
     "help",
-#    "showOperational",
-#    "showDictionary",
-#    "showSensorSite",
-#    "addSite",
-#    "addSensor",
 
     ];
 
@@ -392,44 +383,8 @@ ucds = {
     "AQ_SO2" : ["SO2"],
 }
 
-#arguments = {
-#    "addsite" : [
-#        "siteid", "address", "city", "country", "zip", "lon", "lat",
-#        "hag", "hasl", "firstdate", "operator", "sensorid"
-#        ],
-#    "addsitesfromfile" : [
-#        "ifilename"
-#        ],
-#    "addsensorsfromfile" : [
-#        "ifilename"
-#        ],
-#    "addsensor" : [
-#        "sensorid", "provider",  "firstdate",
-#        "serialnumber", "siteid", "nquantities", 
-#        ],
-#    "quantity" : [
-#        "qname", "qunits", "quncertainty", "qucd"
-#        ],
-#    "show" : [
-#        "qname", 
-#        ],
-#    "getinputtemplate" : [
-#        "qname", "qunits", "quncertainty", "qucd"
-#        ],
-#    "attachsensortosite" : [ "qucd" ],
-#    "activatesensorinsite" : [ "qucd" ],
-#    "deactivatesensorinsite" : [ "qucd" ],
-#    "detachsensorfromsite" : [ "qucd" ],
-#    "adddetectorinformation": [ "qucd" ],
-#    "addinfo": [ "qucd" ],
-#    "rminfo": [ "qucd" ],
-#    "identify": [ "qucd" ],
-##    "showsensorsite" : [ "qucd" ],
-#    "help" : [ "aiuta" ],
-#}
 
 def stime2utime(stime):
-#    print "Stime: ", stime
     if "T" in stime:
         fmt = idtf
     else:
@@ -443,12 +398,10 @@ def histKiller(obj, tag):
         for k, v in obj.items():
             if hasattr(v, '__iter__'):
                 if k == HISTORY:
-#                    print "IT:", k, v
                     i = 0
                     for h in v:
                         rtag = "{:.6f}".format(h[LOGTIME])
                         if rtag == qtag:
-#                            print "hk-Eureka", rtag, qtag
                             del v[i]
                         i += 1
 
@@ -460,12 +413,38 @@ def histKiller(obj, tag):
 #                        print obj
 #                        print '%s :-: %s vs %s' % (k, qtag, tag)
     elif type(obj) == list:
+        for v in obj:
+            if obj == HISTORY:
+#                print "IH:", obj
+                 pass
+            if hasattr(v, '__iter__'):
+                histKiller(v, tag)
+            else:
+                if v == TSTAMP:
+                    print "V: ", v
+    else:
+        if obj == TSTAMP:
+            print "O", obj
+
+
+def historian(obj):
+    if type(obj) == dict:
+        for k, v in obj.items():
+            if hasattr(v, '__iter__'):
+                if k == HISTORY:
+                    print "IT:", k, v
+                    for h in v:
+                        print h
+
+                else:
+                    historian(v)
+    elif type(obj) == list:
 #        print "OL", obj
         for v in obj:
             if obj == HISTORY:
                 print "IH:", obj
             if hasattr(v, '__iter__'):
-                histKiller(v, tag)
+                historian(v)
             else:
                 if v == TSTAMP:
                     print "V: ", v
@@ -478,8 +457,7 @@ def do_rmInfo(gDict, args):
     """
     Function to remove an entry from any of the history lists
     """
-#    if len(args) == 0:
-#        do_showHelp(gDict, ["rminfo"])
+
     (doThis, todo) = splitArgs(args, 1)
     fail = checkPresence(doThis, ["tag"], [])
     if fail["truth"]:
@@ -494,15 +472,11 @@ def do_rmInfo(gDict, args):
             print prefix, "histoid=xxx.xxx"
             sys.exit()
         theTag = doThis["histoid"]
-#        print "Trying to remove: ", theTag
-        print "GDOr:", len( json.dumps(gDict) )
-#        print gDict[LOGGER]
+#        print "GDOr:", len( json.dumps(gDict) )
         odict = gDict.copy()
         histKiller(gDict, theTag)
-        print "GDMod:", len( json.dumps(gDict) )
-#        print gDict[LOGGER]
-        event = histoire(None, "entry {} rm(history).".format(theTag),
-                XDATE, heute)
+#        print "GDMod:", len( json.dumps(gDict) )
+        event = ulogger(heute, "entry {} rm(history).".format(theTag))
 
     elif theInfo == "field":
         fail = checkPresence(doThis, ["fname"],
@@ -525,9 +499,7 @@ def do_rmInfo(gDict, args):
             else:
                 print field, "not part of ", sensorId
                 sys.exit()
-            event = histoire(None, 
-                "{} removed from sensor {}.".format(field, sensorId),
-                XDATE, heute)
+            messy = "{} removed from sensor {}.".format(field, sensorId)
         elif "siteid" in doThis:
             siteId = doThis["siteid"]
             if siteId not in gDict[SITES]:
@@ -539,9 +511,8 @@ def do_rmInfo(gDict, args):
             else:
                 print field, "not part of ", siteId
                 sys.exit()
-            event = histoire(None, 
-                "{} removed from sensor {}.".format(field, sensorId),
-                XDATE, heute)
+            messy = "{} removed from site {}.".format(field, siteId)
+        event = ulogger(heute, messy)
     else:
         print theInfo, "is not a valid 'thing' to remove from an asset"
         sys.exit()
@@ -557,10 +528,7 @@ def do_addInfo(gDict, args):
     """
     Function to add information to an asset
     """
-#    if len(args) == 0:
-#        do_showHelp(gDict, ["addinfo"])
-#    
-#    (doThis, todo) = splitArgs(args)
+
     (doThis, todo) = splitArgs(args, 1)
     fail = checkPresence(doThis, ["info"], [])
     if fail["truth"]:
@@ -584,41 +552,12 @@ def do_addInfo(gDict, args):
             sys.exit()
         if "sensorid" in doThis:
             asset = fail["sensorid"]
-#            hRoot = gDict[SENSORS]
-#            history = hRoot[asset["uid"] ][HISTORY]
         elif "siteid" in doThis:
             asset = fail["siteid"]
-#            hRoot = gDict[SITES]
-#            history = hRoot[asset["uid"] ][HISTORY]
-#            history = gDict[SITES][asset["uid"] ][HISTORY]
-#            siteId = doThis["siteid"]
-#            site = fail["siteid"]
-#            if site is None:
-#                sys.exit()
-#            uid = site["uid"]
-#            msg = "{} {}".format(uid, doThis["msg"])
         elif "pairid" in doThis:
             asset = fail["pairid"]
-#            hRoot = gDict[PAIRS]
-#            history = hRoot[asset["uid"] ][HISTORY]
-#            history = gDict[PAIRS][asset["uid"] ][HISTORY]
-#            thePair = fail["pairid"]
-#            if thePair is None:
-#                sys.exit()
-#            uid = thePair["uid"]
-#            history = gDict[PAIRS][asset["uid"] ][HISTORY]
-#            msg = "{} {}".format(uid, doThis["msg"])
-#            pass
         elif "detid" in doThis:
             asset = fail["detid"]
-#            detPair = doThis["detid"]
-#            if tdet is None:
-##                print "{} is not a valid detector.".format(detPair)
-#                sys.exit()
-#            print "Detector", tdet["uid"], " at:", tdet
-#            history = tdet[HISTORY]
-#            msg = "{} {}".format(tdet["uid"], doThis["msg"])
-#            pass
 
         if asset is None:
             sys.exit()
@@ -626,10 +565,7 @@ def do_addInfo(gDict, args):
         history = asset[HISTORY]
         msg = "{} {}".format(assetId, doThis["msg"])
 
-#        print "New message: ", msg
-#        print "New status:  ", doThis[CLSTATUS]
-        event = histoire(doThis["date"], doThis["msg"], HSTATUS,
-                        doThis[CLSTATUS])
+        event = histoire(doThis["date"], doThis["msg"], doThis[CLSTATUS])
         insert(event, history)
         then = heute
 
@@ -652,13 +588,6 @@ def do_addInfo(gDict, args):
             asset = fail["pairtid"]
         elif "detid" in doThis:
             asset = fail["detid"]
-#            if asset is None:
-#                sys.exit()
-#            assetId = asset["uid"]
-#            asset[doThis["fname"]] = doThis["fvalue"]
-#            msg = "{} = {} added to {}".format(doThis["fname"], 
-#                        doThis["fvalue"].replace(" ", "_"), assetId)
-#            print "Site after: ", site
         if asset is None:
             sys.exit()
         assetId = asset["uid"]
@@ -673,20 +602,23 @@ def do_addInfo(gDict, args):
             sys.exit()
         
         sys.exit()
-        sensorId = doThis["sensorid"]
-        if sensorId not in gDict[SENSORS]:
-            print sensorId, "is not an existing sensor. Quiting"
-            sys.exit()
-        sensor = gDict[SENSORS][sensorId]
-        sensor[doThis["fname"]] = doThis["fvalue"]
-        msg = "{} = {} added to {}".format(doThis["fname"], 
-                        doThis["fvalue"], sensorId)
-        then = heute
-        msg = doThis["msg"]
-        event = histoire(doThis["date"], doThis["msg"], XDATE,
-                        doThis["date"])
-        insert(event, history)
+#
+#   TO-DO
+#
+#        sensorId = doThis["sensorid"]
+#        if sensorId not in gDict[SENSORS]:
+#            print sensorId, "is not an existing sensor. Quiting"
+#            sys.exit()
+#        sensor = gDict[SENSORS][sensorId]
+#        sensor[doThis["fname"]] = doThis["fvalue"]
+#        msg = "{} = {} added to {}".format(doThis["fname"], 
+#                        doThis["fvalue"], sensorId)
+#        then = heute
+#        msg = doThis["msg"]
+#        event = histoire(doThis["date"], doThis["msg"], None)
+#        insert(event, history)
         pass
+
     elif theInfo == "log":
         fail = checkPresence(doThis, ["msg", "date"], [])
         if fail["truth"]:
@@ -694,16 +626,15 @@ def do_addInfo(gDict, args):
             sys.exit()
         then = heute
         msg = doThis["msg"]
-        event = histoire(doThis["date"], doThis["msg"], XDATE,
-                        doThis["date"])
+        event = ulogger(doThis["date"], doThis["msg"])
         insert(event, gDict[LOGGER])
 
         pass
     else:
         print theInfo, "is not a valid 'thing' to add to an asset"
         sys.exit()
-    pass
-    event = histoire(then, msg, XDATE, then)
+
+    event = ulogger(then, msg)
     gDict[LOGGER].append(event)
 
 def checkPresence(doit, mustHave, oneAtLeast):
@@ -786,17 +717,8 @@ def getPair(sid):
        print "invalid pair ({} or {}), sorry, can't continue.".format(lePair, riaPel)
        thePair = None
     return thePair
-#    if thePair not in gDict[SITES]:
-#        print sid, "is not an existing site. Quiting"
-#        return None
-#    else:
-#        return gDict[SITES][sid]
-#            pairId = doThis["pairid"]
-#                sys.exit()
-#            print pairId, thePair
 
 def getDetector(sid):
-#            detPair = doThis["detid"]
     (sensId, detId) = sid.split(',')
     sensor = getSensor(sensId)
     if sensor is None:
@@ -805,7 +727,6 @@ def getDetector(sid):
     lod = sensor[LISTOFDETECTORS]
     if did.lower() not in lcDict[DETECTORS].keys():
         print "{} is not a detected quantity in {}".format(detId, sensId)
-#        sys.exit()
         return None
     (zid, detId) = lcDict[DETECTORS][did.lower()].split(".")
 #    print "Located dectector: ", detId
@@ -813,11 +734,6 @@ def getDetector(sid):
 #    print "Detector: ", sensor[DETECTORS][detId]
 
     return sensor[DETECTORS][detId]
-#    if sid not in gDict[SITES]:
-#        print sid, "is not an existing site. Quiting"
-#        return None
-#    else:
-#        return gDict[SITES][sid]
 
 def do_showHelp(gDict, args):
     """
@@ -838,12 +754,8 @@ uam showHelp <action>
         print h, theActions
         return
     subject = args[0].lower()
-#    print "Help-subject: ", subject
     laKey = None
-#    for key in actionsHelp.keys():
     for key in helpOrder:
-#        print "SB: {}|".format( subject)
-#        print "KL: {}|".format( key.lower())
         if subject == key.lower():
             laKey = key
             break
@@ -852,7 +764,6 @@ uam showHelp <action>
         sys.exit()
 
     aha = actionsHelp[laKey]
-#    print "uam", subject, aha
     print "Usage:\n    uam", subject, aha["args"]
     print "\n{}".format( aha["long"] )
     sys.exit()
@@ -864,7 +775,6 @@ def liveAt(history, limit):
     for h in history:
         if h[TSTAMP] > limit:
             return stt
-#        print h[TSTAMP], limit, h[HSTATUS]
         if h[HSTATUS] == "on":
             stt = True
         else:
@@ -877,16 +787,12 @@ def showSite(site, gDict, limitUstamp, hDate, activity):
         return
 
     (dkey, revKey) = revert(["site"])
-#    print "DK:", dkey
-#    print "RK:", revKey
-
-#    print "date comparison: ", firstUs, limitUstamp
     if activity:
         print "activity for site: ", site
         k = HISTORY
         print " {}.{}".format(site, k)
         hist = gDict[SITES][site][k]
-        showHist({HACTION:"Action", HSTATUS:"Status"}, None)
+        showHist(hLabel, None)
         for he in hist:
             showHist(he, limitUstamp)
     else:
@@ -900,7 +806,7 @@ def showSite(site, gDict, limitUstamp, hDate, activity):
             if k == HISTORY:
                 print " {}.{}".format(site, dk)
                 hist = gDict[SITES][site][k]
-                showHist({HACTION:"Action", HSTATUS:"Status"}, None)
+                showHist(hLabel, None)
                 for he in hist:
                     showHist(he, limitUstamp)
             else:
@@ -914,21 +820,13 @@ def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
         return
 
     (dkey, revKey) = revert(["sensor", "detector"])
-#    sensTags =  templateObjs["sensor"]
-#    for p in sensTags:
-#        for kk in p.keys():
-#            revKey[kk] = p[kk]
-#    sensTags =  templateObjs["detector"]
-#    for p in sensTags:
-#        revKey[sensTags[p]] = p
 
     # date detection should occur here
     if activity:
-#        print "Activity on"
         k = HISTORY
         hist = leSensor[k]
         print " {}.{}:".format(sensor, k)
-        showHist({HACTION:"Action", HSTATUS:"Status"}, None)
+        showHist(hLabel, None)
         for he in hist:
             showHist(he, limitUstamp)
         pass
@@ -942,7 +840,6 @@ def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
             if DETECTORS in k:
                 continue
             if k == revKey["provider"]:
-    #            print leSensor[k]
                 p = sorted(leSensor[k].keys())
                 for e in p:
                     f = leSensor[k][e]
@@ -956,7 +853,7 @@ def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
             elif k == HISTORY and showH == True:
                 hist = leSensor[k]
                 print " {}.{}:".format(sensor, dk)
-                showHist({HACTION:"Action", HSTATUS:"Status"}, None)
+                showHist(hLabel, None)
                 for he in hist:
                     showHist(he, limitUstamp)
             elif k == HISTORY and showH == False:
@@ -974,24 +871,33 @@ def showSensor(sensor, gDict, showH, limitUstamp, hDate, activity):
             print " {:25s}".format(label), ms, qtty['du'], qtty['dz']
     
             if len(qtty[HISTORY]) > 0:
-#                chist = shist
                 chist = []
                 for h in shist:
                     chist.append(h)
                 for h in  qtty[HISTORY]:
                     insert(h, chist)
                 print sensor, ms, HISTORY
-                showHist({HACTION:"Action", HSTATUS:"Status"}, None)
+                showHist(hLabel, None)
                 for ch in chist:
                     showHist(ch, limitUstamp)
 
 def showHist(entry, limit):
     """
+H_TSTAMP = 0
+H_LSTAMP = 1
+H_MESSGE = 2
+H_STATUS = 3
+H_USRNME = 4
     method to show history items
     """
-    if TSTAMP in entry:
-        etime = entry[TSTAMP] + tOffset
-        tag = entry[LOGTIME] + tOffset
+    if entry[H_TSTAMP] is None:
+        hrTime = "Date      "
+        mrk = " "
+        lgt = ""
+    else:
+        etime = entry[H_TSTAMP] + tOffset
+        tag = entry[H_LSTAMP] + tOffset
+        lgt = "{:.6f}".format(float( tag ))
         if limit is None:
             mrk = " "
         elif etime < limit:
@@ -1001,25 +907,11 @@ def showHist(entry, limit):
         if etime == 32503680000:
             return
         hrTime = datetime.datetime.fromtimestamp( etime).strftime('%Y-%m-%d')
-    else:
-        hrTime = "Date      "
-        mrk = " "
-    if HSTATUS in entry:
-        status = entry[HSTATUS]
-    else:
-        status = ""
 
-    if LOGTIME in entry:
-        lgt = "{:.6f}".format(float(entry[LOGTIME]))
-    else:
-        lgt = ""
+    action = entry[H_MESSGE]
+    status = entry[H_STATUS]
 
-    if HACTION in entry:
-        action = entry[HACTION]
-    else:
-        action = ""
     msg = "{}  {:12s} {:25s} {:10s} {}".format(mrk, hrTime, action, status, lgt)
-#    print "  ", hrTime, action, status
     print msg
 
 def splitArgs(args, nmandatory):
@@ -1034,6 +926,11 @@ def splitArgs(args, nmandatory):
             parts = arg.split("=")
             doThis[lcparts[0]] = parts[1]
             todo.append(lcparts[0])
+            if lcparts[0] == "src":
+                assetsFile = parts[1]
+                if not os.path.isfile(assetsFile):
+                    print "File {} does not exist.  Quiting".format(assetsFile)
+                    sys.exit()
         else:
             doThis[lcarg] = None
             todo.append(lcarg)
@@ -1044,21 +941,14 @@ def do_showThings(gDict, args):
     """
     Function to show any dictionary content
     """
-#    if len(args) == 0:
-#        do_showHelp(gDict, ["show"])
-#    
-#    (doThis, todo) = splitArgs(args)
+
     (doThis, todo) = splitArgs(args, 1)
-#    fail = checkPresence(doThis, ["item"], [])
-#    if fail["truth"]:
-#        sys.exit()
 
     showTime = todo[0]
     iDate = None
     hDate = None
     activity = False
     y3k   = stime2utime("10-01-3000")
-#    print "maintenant: ", maintenant
     if "date" in todo:
         hDate = doThis["date"]
         iDate = stime2utime(doThis["date"])
@@ -1066,19 +956,6 @@ def do_showThings(gDict, args):
         activity = True
 
     if showTime == "dictionary":
-        dicFile = doThis[showTime]
-        if not dicFile is None:
-#            print "must read a new file and get dictionary"
-            assetsFile = "/Users/Shared/ufloTables/{}".format(dicFile)
-            if os.path.isfile(assetsFile):
-                dfile = open(assetsFile,"r")
-                jsonString = dfile.readline().rstrip('\n')
-                gDict = json.loads(jsonString)
-                dfile.close()
-            else:
-                print "et maintenant",maintenant
-                print assetsFile, " does not exist."
-                sys.exit()
 
         if LISTOFSITES in gDict:
             sites = gDict[LISTOFSITES]
@@ -1097,13 +974,16 @@ def do_showThings(gDict, args):
             print "\nList of pairs: ", pairs.keys()
             for pair in sorted(pairs.keys()):
                 showPair(pair, gDict, iDate, hDate)
-#            for pair in pairs.keys():
-#                print pair #, pairs[pair]
-#                showHist({HACTION:"Action", HSTATUS:"Status"}, None)
-#                for entry in pairs[pair]:
-#                    showHist(entry, iDate)
+
+    elif showTime == "histories":
+        historian(gDict)
+        for k in sorted(hStat.keys()):
+            print "{} = {}".format(k, hStat[k])
 
     elif showTime == "asset":
+        if doThis[showTime] is None or doThis[showTime] == "":
+            print "No asset specified. Use at least asset=*"
+            sys.exit()
         dass = lcDict["assets"]
         asset = doThis[showTime].lower()
         found = False
@@ -1116,84 +996,21 @@ def do_showThings(gDict, args):
                 found = True
                 lcN = lcDict["assets"][key]
                 akind = lcDict["loa"][lcN]
-#                print asset, key , lcN, "is a", akind # pName
-#                print lcDict
                 pName = lcDict[akind][key]
                 if akind == SENSORS:
                     showSensor(pName, gDict, True, iDate, hDate, activity)
                 elif akind == SITES:
                     showSite(pName, gDict, iDate, hDate, activity)
                 elif akind == DETECTORS:
-#                    print "xtra", akind, key, pName
                     pName = lcDict[DETECTORS][key]
                     (sid, detectorId) = pName.split(".")
                     showDetector(sid, detectorId, gDict, iDate, hDate, activity)
                 elif akind == PAIRS:
-#                    print "ThisIsAPair"
                     showPair(pName, gDict, iDate, hDate)
         if not found:
             print "asset {} not found".format(doThis["asset"])
         sys.exit()
         
-#
-#        cs = decodeAsset(asset)
-#        print asset, cs
-##        print lcDict
-#        if asset in lcDict["assets"].keys():
-#            lcN = lcDict["assets"][asset]
-#            akind = lcDict["loa"][lcN]
-#            pName = lcDict[akind][asset]
-#            print asset , lcN, "is a", akind, pName
-#            if akind == "sensors":
-#                showSensor(pName, gDict, True, iDate, hDate, activity)
-#            elif akind == "sites":
-#                showSite(pName, gDict, iDate, hDate, activity)
-#            elif akind == "detectors":
-#                pName = lcDict[DETECTORS][asset]
-#                print "xtra", asset, pName
-#                (sid, detectorId) = pName.split(".")
-#                showDetector(sid, detectorId, gDict, iDate, hDate, activity)
-#            elif akind == "pairs":
-#                print "ThisIsAPair"
-#                showPair(pName, gDict, iDate, hDate)
-#            sys.exit()
-#        elif len(cs) > 1:
-#            print "Unrecognised asset. Decomposing"
-#            msk = 0
-#            nfound = 0
-#            nwc = 0
-#            for ac in cs:
-##                print "examining: ", ac
-#                if ac in lcDict["assets"].keys():
-#                    lcN = lcDict["assets"][ac]
-#                    msk |= lcDict["masks"][lcN]
-#                    akind = lcDict["loa"][lcN]
-#                    nfound += 1
-#                    print ac, lcN , "is a", akind, lcDict[akind][ac]
-#                elif ac == "*":
-#                    print "wildcard used"
-#                    nwc += 1
-#            
-#            print "NFound: ", nfound, msk, nfound
-#            if nfound + nwc < len(cs):
-#                print "not enough valid components for asset:",  asset
-#            elif msk == 18:   # a detector on a sensor
-#                ndet = "{}.{}".format(cs[1], cs[0])
-#                print "Looking for ", ndet, "in ", lcDict["assets"]
-#                if ndet in lcDict["assets"]:
-#                    print "Eureka.detector: ", ndet
-#                pass
-#            elif msk ==3:   # a pair
-#                npair = "{}.{}".format(cs[1], cs[0])
-#                if npair in lcDict["assets"]:
-#                    print "Eureka.pair: ", npair
-#                pass
-#            else:
-#                print "Unrecognised asset:",  asset
-#        else:
-#            print "Unknown asset:",  asset
-#        sys.exit()
-
     elif showTime == "sensor":
         if LISTOFSENSORS in gDict:
             sensors = gDict[LISTOFSENSORS]
@@ -1212,6 +1029,7 @@ def do_showThings(gDict, args):
     elif showTime == "site":
         if LISTOFSITES in gDict:
             sites = gDict[LISTOFSITES]
+            print "sites list: ", sites
             mysite = doThis[showTime].lower()
             if mysite == "*":
                 for site in sites:
@@ -1227,9 +1045,10 @@ def do_showThings(gDict, args):
         if LOGGER in gDict:
             logs = gDict[LOGGER]
             for log in logs:
-                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME] + tOffset)).strftime('%a %d-%m-%Y %H:%M:%SZ')
-                if TSTAMP in log:
-                    ts = int(log[TSTAMP] + tOffset)
+                hrTime = datetime.datetime.fromtimestamp( float(log[L_LTIME] + tOffset)).strftime('%a %d-%m-%Y %H:%M:%SZ')
+#                if TSTAMP in log:
+                if True:
+                    ts = int(log[L_TSTAMP] + tOffset)
                     rem = ts%86400
                     if rem == 0:
                         hrXtime = datetime.datetime.fromtimestamp( float(ts )).strftime('%a %d-%m-%Y')
@@ -1240,7 +1059,7 @@ def do_showThings(gDict, args):
                     ts = None
                     rem = None
 #                print hrTime, log[HACTION], "on", log[XDATE]
-                print hrTime, log[HACTION], "@", hrXtime
+                print hrTime, log[L_ACTION], "@", hrXtime
         pass
 
     elif showTime == "chronology":
@@ -1249,15 +1068,16 @@ def do_showThings(gDict, args):
             tdic = {}
             nl = 0
             for log in logs:
-                key = "{}_{}".format(log[TSTAMP], nl)
+                key = "{}_{}".format(log[L_TSTAMP], nl)
                 tdic[key ]  = log
                 nl += 1
 
             for logk in sorted(tdic.keys()):
                 log = tdic[logk]
-                hrTime = datetime.datetime.fromtimestamp( float(log[LOGTIME] + tOffset)).strftime('%a %d-%m-%Y %H:%M:%S.%fZ')
-                if TSTAMP in log:
-                    ts = int(log[TSTAMP] + tOffset)
+                hrTime = datetime.datetime.fromtimestamp( float(log[L_LTIME] + tOffset)).strftime('%a %d-%m-%Y %H:%M:%S.%fZ')
+#                if TSTAMP in log:
+                if True:
+                    ts = int(log[L_TSTAMP] + tOffset)
                     rem = ts%86400
                     if rem == 0:
                         hrXtime = datetime.datetime.fromtimestamp( float(ts )).strftime('%a %d-%m-%Y')
@@ -1269,7 +1089,7 @@ def do_showThings(gDict, args):
                     rem = None
 
 #                print hrTime, log[HACTION], "on", log[XDATE], ts, rem, hrXtime
-                print hrTime, log[HACTION], "@", hrXtime
+                print hrTime, log[L_ACTION], "@", hrXtime
         pass
 
     elif showTime == "detector":
@@ -1283,8 +1103,15 @@ def do_showThings(gDict, args):
 #        import re
 #        parts = re.findall(r"[\w']+", mydet)
 #        print parts
+        if mydet == "*":
+            losDetectors = []
+            for d in  sorted(lcDict[DETECTORS].keys()):
+                if "." in d:
+                    losDetectors.append( lcDict[DETECTORS][d] )
+            print "Detectors: ", losDetectors
+            sys.exit()
+
         cs = decodeAsset(mydet)
-#        (sensorId, detectorId) = mydet.split(sep)
         (sensorId, detectorId) = (cs[0].lower(), cs[1].lower())
         if iDate is None:
             print "Info for {} ".format( mydet)
@@ -1301,7 +1128,6 @@ def do_showThings(gDict, args):
                 detectorId = lcDict[DETECTORS][detectorId]
                 for sid in sensors.keys():
                     dets = sensors[sid][DETECTORS]
-#                    print dets
                     if detectorId not in dets:
                         print "Beep... {} not a valid detector".format(detectorId)
                     showDetector(sid,detectorId, gDict, iDate, hDate, activity)
@@ -1314,14 +1140,11 @@ def do_showThings(gDict, args):
             if detectorId == "*":
                 sid = sensors[sensorId]
                 dets = sid[DETECTORS]
-#                print dets
                 for det in dets.keys():
                     showDetector(sensorId,det, gDict, iDate, hDate, activity)
             else:
-#                print lcDict[DETECTORS]
                 detectorId = lcDict[DETECTORS][detectorId]
                 dets = sensors[sensorId][DETECTORS]
-#               print dets
                 if detectorId not in dets:
                     print "Beep... {} not a valid detector".format(detectorId)
                 showDetector(sensorId,detectorId, gDict, iDate, hDate, activity)
@@ -1373,9 +1196,9 @@ def do_showThings(gDict, args):
         mypair = doThis[showTime]
         pcount = 1
         for pair in sorted(pairs.keys()):
-            tev = histoire(hDate,"test", HSTATUS, "undef");
+            tev = histoire(hDate,"test", "undef");
             status = getStatus(tev, pairs[pair][HISTORY])
-            (siteId, sensorId) = pair.split("|")
+            (siteId, sensorId) = pair.split(".")
             leSite = gDict[SITES][siteId]
             leSensor = gDict[SENSORS][sensorId]
             siteStatus = getStatus(tev, leSite[HISTORY])
@@ -1403,7 +1226,6 @@ def do_showThings(gDict, args):
                         det[revKey["unit"]], det[revKey["ucd"]]) )
             print "{}:{},{},{},{},{},{},{}".format(siteId,sensorId,
             lati,longi, pcount, "Time", sensorStatus, "|".join(d3))
-#            operational(pair, gDict, iDate, hDate)
             pcount += 1
         pass
     else:
@@ -1425,16 +1247,15 @@ def identifyStatus(asset, history, stvalue, fDate, tDate, verbus):
     """
     Rescue periods in which the status component equals stvalue
     """
-#    print asset, history
     first = False
     intervals = []
     pair = []
     for h in history:
-        th = h[TSTAMP] #+ tOffset
+        th = h[H_TSTAMP] #+ tOffset
 
-        sth = h[HSTATUS]
+        sth = h[H_STATUS]
         if verbus:
-            print asset, fDate + tOffset, h[TSTAMP] + tOffset, tDate + tOffset, sth
+            print asset, fDate + tOffset, h[H_TSTAMP] + tOffset, tDate + tOffset, sth
         if sth == stvalue:
             pair = []
             pair.append(th)
@@ -1459,7 +1280,6 @@ def identifyStatus(asset, history, stvalue, fDate, tDate, verbus):
             i[1] = tDate
         t0 = datetime.datetime.fromtimestamp( int(i[0]+tOffset)).strftime('%d-%m-%Y')
         t1 = datetime.datetime.fromtimestamp( int(i[1]+tOffset)).strftime('%d-%m-%Y')
-#        print i[0], i[1]
         print asset, t0, t1, stvalue
 
 
@@ -1467,10 +1287,8 @@ def do_identifyStatus(gDict, args):
     """
     Function to show periods in which an asset has a given status
     """
-#    if len(args) == 0:
-#        do_showHelp(gDict, ["identify"])
+
     (doThis, todo) = splitArgs(args, 2)
-#    print "going to check..."
     fail = checkPresence(doThis, [CLSTATUS], ["sensor","site","pair", "detector"])
     if fail["truth"]:
         sys.exit()
@@ -1486,7 +1304,6 @@ def do_identifyStatus(gDict, args):
     hDate = None
     activity = False
     y3k   = stime2utime("10-01-3000")
-#    print "maintenant: ", maintenant
     if "from" in todo:
         fDateH = doThis["from"]
     else:
@@ -1521,25 +1338,21 @@ def do_identifyStatus(gDict, args):
             for sensor in theSensors:
                 identifyStatus(sensor, gDict[SENSORS][sensor][HISTORY],
                             status, fDate, tDate, verbose)
-#                showSensor(sensor, gDict, False, iDate, hDate, activity)
             
     elif asset == "site":
         if LISTOFSITES in gDict:
             sites = lcDict[LISTOFSITES]
-#            print "Sites: ", sites
             mysite = doThis[asset].lower()
             theSites = []
             if mysite == "*":
                 theSites = sites
             else:
                 if mysite in sites:
-#                    print sites[mysite]
                     theSites = [ sites[mysite] ]
                 else:
                     print mysite, "is not recognised as a site"
                     sys.exit()
             for site in theSites:
-#                showSite(site, gDict, iDate, hDate, activity)
                 identifyStatus(site, gDict[SITES][site][HISTORY],
                             status, fDate, tDate, verbose)
             
@@ -1560,12 +1373,9 @@ def do_identifyStatus(gDict, args):
                 if wcDet in d:
                     if "." not in d:
                         continue
-#                    print "Got a match 1: ", wcDet, d
                     gDet = dets[d]
                     (tSens, tDet) = gDet.split(".")
-#                    print "Got a match 2: ", wcDet, d, gDet, tSens, tDet
                     shist = gDict[SENSORS][tSens][HISTORY]
-#                    dets = gDict[SENSORS][tSens][DETECTORS]
                     dHist = []
                     for h in shist:
                         dHist.append(h)
@@ -1589,7 +1399,6 @@ def do_identifyStatus(gDict, args):
                     shist = gDict[SENSORS][tSens][HISTORY]
                     dets = gSensors[tSens][DETECTORS]
                     for det in dets.keys():
-#                        showDetector(sid,det, gDict, iDate, hDate, activity)
                         dHist = []
                         for h in shist:
                             dHist.append(h)
@@ -1602,20 +1411,17 @@ def do_identifyStatus(gDict, args):
                     tSens = sensors[sid]
                     gSensor = gDict[SENSORS][ tSens ]
                     shist = gSensor[HISTORY]
-#                    print lcDict
                     dets = lcDict[DETECTORS]
                     leDet = "{}.{}".format(sid,detectorId)
                     if leDet not in dets:
                         print "Beep... {} not a valid detector".format(detectorId)
                         sys.exit()
                     detc = dets[detectorId]
-#                    print detc, dets
                     dHist = []
                     for h in shist:
                         dHist.append(h)
                     for h in gDict[SENSORS][tSens][DETECTORS][detc][HISTORY]:
                         insert(h, dHist)
-#                    showDetector(sid,detectorId, gDict, iDate, hDate, activity)
                     identifyStatus("{}.{}".format(sid,detectorId),
                             dHist, status, fDate, tDate, verbose)
                 pass
@@ -1627,22 +1433,17 @@ def do_identifyStatus(gDict, args):
             gSensor = gDict[SENSORS][leSensor]
             shist = gSensor[HISTORY]
             if detectorId == "*":
-#                sid = gDict[SENSORS][leSensor]
                 dets = gSensor[DETECTORS]
-#                print dets
                 for det in dets.keys():
                     dHist = []
                     for h in shist:
                         dHist.append(h)
                     for h in gDict[SENSORS][leSensor][DETECTORS][det][HISTORY]:
                         insert(h, dHist)
-#                    showDetector(sensorId,det, gDict, iDate, hDate, activity)
                     identifyStatus("{}.{}".format(leSensor,det),
                              dHist, status, fDate, tDate, verbose)
             else:
-#                dets = sensors[sensorId][DETECTORS]
                 dets = lcDict[DETECTORS]
-#               print dets
                 if detectorId not in dets:
                     print "Beep... {} not a valid detector".format(detectorId)
                 dHist = []
@@ -1650,7 +1451,6 @@ def do_identifyStatus(gDict, args):
                     dHist.append(h)
                 for h in gDict[SENSORS][leSensor][DETECTORS][dets[detectorId]][HISTORY]:
                     insert(h, dHist)
-#               showDetector(sensorId,detectorId, gDict, iDate, hDate, activity)
                 identifyStatus("{}.{}".format(leSensor,dets[detectorId]),
                     dHist, status, fDate, tDate, verbose)
                 pass
@@ -1661,7 +1461,6 @@ def do_identifyStatus(gDict, args):
             mypair = doThis[asset]
             if mypair == "*":
                 for pair in sorted(pairs.keys()):
-#                    print gDict[PAIRS][pair][HISTORY]
                     identifyStatus(pair,
                         gDict[PAIRS][pair][HISTORY],
                         status, fDate, tDate, verbose)
@@ -1692,7 +1491,6 @@ def do_identifyStatus(gDict, args):
 def revert(objectList):
     if len(objectList) > 1:
         name = "-".join(objectList)
-#        print "RevName: ", name
         if name not in revTemplate:
             ognil = {}
             dcle = {}
@@ -1704,11 +1502,9 @@ def revert(objectList):
                         dcle[k] = l[k]
             revTemplate[name] = ognil
             dirTemplate[name] = dcle
-#            print "RevName: ", name, ognil
             pass
         
-#        for objectd in objectList:
-    else:
+    else:      #   for objectd in objectList:
         name = objectList[0]
         if name not in revTemplate:
             lingo = templateObjs[name]
@@ -1720,7 +1516,6 @@ def revert(objectList):
                     dcle[k] = l[k]
             revTemplate[name] = ognil
             dirTemplate[name] = dcle
-#            print "RevName: ", name, ognil
     return dirTemplate[name], revTemplate[name]
 
 def showDetector(sensorId,detectorId, gDict, limitUstamp, hDate, activity):
@@ -1728,9 +1523,7 @@ def showDetector(sensorId,detectorId, gDict, limitUstamp, hDate, activity):
     status = ""
 
     dkey, vale = revert(["detector"])
-#    print vale
     unit = "[{}]".format(det[vale["unit"]])
-#    error = "{:.2f}".format(float(det["epsilon"]))
     error = det[vale["epsilon"]]
     dpair = "{}.{}".format(sensorId, detectorId)
     shist = gDict[SENSORS][sensorId][HISTORY]
@@ -1743,13 +1536,12 @@ def showDetector(sensorId,detectorId, gDict, limitUstamp, hDate, activity):
         print "{:15s} {:8s} +/- {:8s} {:8s} {:8s}".format(dpair, unit,
                 error, det[vale["ucd"]], status)
         print "{}'s history:".format(dpair)
-#        print sensor, ms, HISTORY
-        showHist({HACTION:"Action", HSTATUS:"Status"}, None)
+        showHist(hLabel, None)
         for ch in chist:
             showHist(ch, limitUstamp)
         pass
     else:
-        tev = histoire(hDate,"test", HSTATUS, "undef");
+        tev = histoire(hDate,"test", "undef");
         status = getStatus(tev, chist)
         print "{:15s} {:8s} +/- {:8s} {:8s} {:8s}".format(dpair, unit,
                 error, det[vale["ucd"]], status)
@@ -1760,7 +1552,7 @@ def showPair(pair, gDict, limitUstamp, hDate):
         print pair, "not active"
         return
     print "Pair ", pair #, lePair, limitUstamp
-    showHist({HACTION:"Action", HSTATUS:"Status"}, None)
+    showHist(hLabel, None)
     pairs = gDict[PAIRS]
     for hist in lePair:
         showHist(hist, limitUstamp)
@@ -1770,25 +1562,20 @@ def cleanDict(obj):
     if type(obj) == dict:
         for k, v in obj.items():
             if hasattr(v, '__iter__'):
-#                print "ka:", k
                 cleanDict(v)
             else:
                 if k == "uid":
                     print 'ack!! %s : %s' % (k, v)
                     del obj[k]
                 else: 
-#                    print '%s : %s' % (k, v)
                     pass
     elif type(obj) == list:
-#        print obj
         for v in obj:
             if hasattr(v, '__iter__'):
                 cleanDict(v)
             else:
-#                print "v is", v
                 pass
     else:
-#        print "o is", obj
         pass
 
 
@@ -1809,26 +1596,17 @@ def cleanDict(obj):
 
 
 def appendSite(site, kv):
-#    print "KV: ", kv
-#    print "VK: ", vk
     firstDate = kv["firstdate"]
     if site[firstDate] == "today":
         site[firstDate] =  time.strftime(idf)
 
-#    sepoch = time.mktime(datetime.datetime.strptime(site[firstDate], idf).timetuple())
     sdft =  site[firstDate]
-#    sdu = str(datetime.datetime(int(sd[2]), int(sd[1]), int(sd[0])))
     sdu = stime2utime(sdft)
-#    print "sdu = ", sdu, " utime: ", sepoch
     site[kv["epoch.f"]] = sdu
     site[kv["date.l"]] = "01-01-3000"
-#    fd =  site["date.l"].split("/")
-#    fdu = str(datetime.datetime(int(fd[2]), int(fd[1]), int(fd[0])))
     fdu = stime2utime(site[kv["date.l"]])
     site[kv["epoch.l"]] = fdu
-#    site[kv["username"]] = uname
     site[HISTORY] = []
-#    stamp = [ sdu , sdft, "activated"]
     opera = kv["operator"]
     if opera in site:
         operator = site[opera]
@@ -1842,13 +1620,6 @@ def appendSite(site, kv):
         else:
             site[opera] = { "id" : operator}
         
-#    if "sensoridee" in site:
-#        if site["sensorid"] != "-":
-#            sensors = site["sensorid"].split("|")
-#            site["sensorid"] = sensors
-#            site[HISTORY].append([sdu, sdft, "pairedWith", site["sensorid"] ])
-#    print "SITE: ", site
-
     seatid = kv["siteid"]
     sid = site[seatid]
     if SITES not in gDict:
@@ -1862,22 +1633,14 @@ def appendSite(site, kv):
         msg = "addSite"
 
     gDict[SITES][sid] = site
-#    event = [ time.time(), str(datetime.datetime.now()), msg, [sid] ]
-    event = histoire(sdft, "{} {}".format(msg,sid), XDATE, sdft)
+    event = ulogger(sdft, "{} {}".format(msg,sid) )
     gDict[LOGGER].append(event)
     print "{} site {} on {}".format(msg,sid, sdft)
-    stamp = histoire(sdft, "operational", HSTATUS, "deployed")
+    stamp = histoire(sdft, "operational", "deployed")
     site[HISTORY].append(stamp)
     if msg == "addSite":
-        stamp = histoire("01-01-3000","decommissioned", HSTATUS, "dead");
+        stamp = histoire("01-01-3000","decommissioned", "dead");
         site[HISTORY].append(stamp)
-#    print gDict
-#    for k in sorted(site.keys()):
-#        if k in vk:
-#            print "{:20s} : {} ({})".format(vk[k], site[k], k)
-#        else:
-#            print "{:20s} : {} ({})".format(k, site[k], k)
-
 
 
 def checkArgs(args, nmandatory):
@@ -1904,16 +1667,7 @@ def do_addSitesFromFile(gDict, args):
     dfile = open(fileName,"r")
     lines = dfile.read().splitlines()
     dfile.close()
-#    print "Number of lines: ", len(lines)
     dkey, walkeyrie = revert(["site"])
-
-#    knldg = templateObjs["site"]
-#    keyWal = {}
-#    for k in knldg:
-##        print k
-#        for cle in k.keys():
-#            keyWal[cle] = k[cle]
-#            walkeyrie[ k[cle] ] = cle
 
     site = {}
     for line in lines:
@@ -1932,16 +1686,12 @@ def do_addSitesFromFile(gDict, args):
             appendSite(site, walkeyrie)
             site = {}
 
-    # temporary exit to avoid 
-#    print "c'est fini"
-#    sys.exit()
 
 def do_createTemplate(gDict, args):
     """
     Function to create input templates for sensors and sites
     """
-#    checkArgs(args, 1)
-#    print actionsHelp["getInputTemplate"]["Args"]
+
     (doThis, todo) = splitArgs(args, 1)
     fail = checkPresence(doThis, ["type"], [])
     kind = fail["type"] # todo[0]
@@ -1951,14 +1701,11 @@ def do_createTemplate(gDict, args):
     n = 1
     if "n" in doThis:
         n = int(doThis["n"])
-#    kind = args.pop(0)
     if kind != "sensor" and kind != "site":
         print kind, " must be either sensor or site"
         sys.exit()
 
-#    fields = templateArgs[kind]
     fields = templateObjs[kind]
-#    print "# template for ", kind
     examples = {
         "operator" : "id:xx|contact:xx|tel:xxxyyyyzzz|email:xxx@yyy",
         "provider" : "id:xx|contact:xx|tel:xxxyyyyzzz|email:xxx@yyy",
@@ -1986,71 +1733,27 @@ def do_createTemplate(gDict, args):
         print "end.asset\n"
     sys.exit()
 
-#def do_addSensor(fields, gDict, args):
-#    """
-#    Function to collect data about a sensor from stdin
-#    """
-#    sensor = {}
-##    print "addSite - Things to extract ", fields
-#    for f in fields:
-#        while  True:
-#            fname = raw_input("\t" + handles[f] + ": ")
-#            if len(fname) > 0:
-#                sensor[f] = fname
-#                break
-#    nq = int(sensor["nquantities"])
-#    quant = {}
-#    lquant  = []
-#    print "Enter measured quantities as: name|units|uncertainty|UCD"
-#    for i in range(0,nq):
-#        qtty = raw_input("\t quantity" + str(i) + ": ")
-#        qs = qtty.split("|")
-#        qN = qs[0]
-#        qU = qs[1]
-#        qE = qs[2]
-#        qZ = qs[3]
-#        lquant.append(qN)
-#        obi = { "units" : qU , "uncertainty": qE, "UCD" : qZ, HISTORY: []}
-#
-#        quant[qN] = obi
-#        
-##    print "\n\n"
-##    print sensor
-#
-#    sensor[DETECTORS] = quant
-#    sensor[LISTOFDETECTORS] = lquant
-#    appendSensor(sensor)
 
 def appendSensor(sensor, kv):
     firstdate = kv["firstdate"]
     if sensor[firstdate] == "today":
         sensor[firstdate] =  time.strftime(idf)
 
-#    sepoch = time.mktime(datetime.datetime.strptime(sensor[firstdate], idf).timetuple())
     sdft =  sensor[firstdate]
-#    sdu = str(datetime.datetime(int(sd[2]), int(sd[1]), int(sd[0])))
     sdu = stime2utime(sdft)
-#    print "sdu = ", sdu, " utime: ", sepoch
     sensor[kv["epoch.f"]] = sdu
     sensor[kv["date.l"]] = "01-01-3000"
-#    fd =  sensor["date.l"].split("/")
-#    fdu = str(datetime.datetime(int(fd[2]), int(fd[1]), int(fd[0])))
     fdu = stime2utime(sensor[kv["date.l"]])
     sensor[kv["epoch.l"]] = fdu
-#    sensor[kv["username"]] = uname
     sensor[HISTORY] = []
-#    stamp = [ sdu , "activated"]
-#    event = histoire(None, msg, "id", sid)
-    stamp = histoire(sdft,"commisioned", HSTATUS, "hold");
+    stamp = histoire(sdft,"commisioned", "hold");
     sensor[HISTORY].append(stamp)
-    stamp = histoire("01-01-3000","decommisioned", HSTATUS, "off");
+    stamp = histoire("01-01-3000","decommisioned", "off");
     sensor[HISTORY].append(stamp)
 
     lesDetectors = sensor[DETECTORS]
     for det in sorted(sensor[DETECTORS].keys()):
-#        print type(det), det, lesDetectors[det]
         lesDetectors[det][HISTORY] = []
-#    sys.exit()
 
     prova = kv["provider"]
     if prova in sensor:
@@ -2064,7 +1767,6 @@ def appendSensor(sensor, kv):
             sensor[prova] = obi
         else:
             sensor[prova] = { "id" : provider}
-#    print sensor
 
     sid = sensor[kv["sensorid"]]
     if SENSORS not in gDict:
@@ -2077,26 +1779,15 @@ def appendSensor(sensor, kv):
         gDict[LISTOFSENSORS].append(sid)
         msg = "addSensor"
     gDict[SENSORS][sid] = sensor
-#    gDict[LISTOFSENSORS].append(sid)
-#    event = [ ctime, str(datetime.datetime.now()), msg, [sid] ]
-    event = histoire(sdft, "{} {}".format(msg,sid), XDATE, sdft)
-#    print "{} sensor {} {}".format(msg,sid, sdft)
+    event = ulogger(sdft, "{} {}".format(msg,sid))
     gDict[LOGGER].append(event)
 
-    # for test purposes only:
-#    print sensor
-#    for k in sorted(sensor.keys()):
-#        if k in vk:
-#            print "{:30s}={} ({})".format(vk[k], sensor[k], k)
-#        else:
-#            print "{:30s}={} ({})".format(k, sensor[k], k)
 
 def do_addSensorsFromFile(gDict, args):
     """
     Function to collect data about sensors from a file
     """
 
-#    checkArgs(args, 1)
     (doThis, todo) = splitArgs(args, 1)
     fail = checkPresence(doThis, ["file"], [])
     if fail["truth"]:
@@ -2108,23 +1799,10 @@ def do_addSensorsFromFile(gDict, args):
         sys.exit()
 
     dkey, walkeyrie = revert(["sensor","detector"])
-#    keyWal = {}
-#    knldg = templateObjs["sensor"]
-#    for k in knldg:
-#        for cle in k.keys():
-#            keyWal[cle] = k[cle]
-#            walkeyrie[ k[cle] ] = cle
-#
-#    knldg = templateObjs["detector"]
-#    for k in knldg:
-#        for cle in k.keys():
-#            keyWal[cle] = k[cle]
-#            walkeyrie[ k[cle] ] = cle
 
     dfile = open(fileName,"r")
     lines = dfile.read().splitlines()
     dfile.close()
-#    print "Number of lines: ", len(lines)
     sensor = {}
     lquant  = []
     quant = {}
@@ -2147,7 +1825,6 @@ def do_addSensorsFromFile(gDict, args):
         elif line == "begin.asset":
             pass
         else:
-#            print line
             k_v = line.split("=")
             k0 = k_v[0]
             k1 = k_v[1]
@@ -2159,21 +1836,17 @@ def do_addSensorsFromFile(gDict, args):
                 for qq in qs:
                     qt = qq.split(":")
                     obi[walkeyrie[ qt[0] ] ] = qt[1]
-#                    print "measure split: ", qt[0], qt[1]
                 qN = obi[walkeyrie["name"]]
                 obi[ walkeyrie["ucd"] ] = getUCD(qN, sensorid)
                 lquant.append(qN)
                 quant[qN] = obi
             else:
                 sensor[walkeyrie[k0]] = k1
-    # temporary, for testing purposes
-#    sys.exit()
 
 def getUCD(name, sensor):
     ucd = None
     for k in ucds.keys():
         if name in ucds[k]:
-#            print "Got it: {} is {}".format(name, k)
             ucd = k
             break
     if ucd is None:
@@ -2185,7 +1858,7 @@ def do_activateSensorInSite(gDict, args):
     """
     Function to attach a sensor to a site
     """
-#    checkArgs(args, 3)
+
     (doThis, todo) = splitArgs(args, 3)
     fail = checkPresence(doThis, ["sensor", "site", "date"], [])
     if fail["truth"]:
@@ -2203,34 +1876,22 @@ def do_activateSensorInSite(gDict, args):
     if PAIRS not in gDict:
         print "Pair sensor/site is not present. Doing nothing"
         sys.exit()
-#        gDict[PAIRS] = {}
     pairs = gDict[PAIRS]
     tag = "{}.{}".format(siteKey, sensorKey)
     print "Taking: {} at {} ({}) live on: {} ".format(sensorid,siteid,tag,date)
     if tag not in pairs:
         pairs[tag] = []
-    tev = histoire(date,"running", HSTATUS, "on");
+    tev = histoire(date,"running", "on");
 
     insert(tev, pairs[tag][HISTORY])
 
-#    stamp = [ tev[TSTAMP] , "attached to {}".format(siteKey)]
-#    gDict[SENSORS][sensorKey][HISTORY].append(stamp)
     insert(tev, gDict[SENSORS][sensorKey][HISTORY])
     msg = "{} activated at {}".format(sensorKey, siteKey)
-    event = histoire(date, msg, XDATE, date)
+    event = ulogger(date, msg)
     gDict[LOGGER].append(event)
     shist = gDict[SITES][siteKey][HISTORY]
-    tev = histoire(date,"{} activated".format(sensorKey), HSTATUS, "on");
+    tev = histoire(date,"{} activated".format(sensorKey), "on");
     insert(tev, shist)
-
-def historian(gDict, date, **kwargs):
-    if not kwargs:
-        print "No arguments given. Nothing to do."
-    for a in kwargs:
-        options[a.lower()] = kwargs[a]
-    siteId = None
-    sensorId = None
-    detectorId = None
 
 
 def getSenSite(gDict, sensorid, siteid, date, what):
@@ -2241,19 +1902,13 @@ def getSenSite(gDict, sensorid, siteid, date, what):
     leSite = None
     leSensor = None
     for site in sites.keys():
-#        print site, siteid, sites[site]
-#        sid = sites[site]["siteid"]
         if site.lower() == siteid:
-#            print "site", site, siteid, " located"
             siteKey = site
             leSite = sites[site]
             break
             
     for sensor in sensors.keys():
-#        print sensor, sensorid
-#        sid = sensors[sensor]["sensorid"]
         if sensor.lower() == sensorid:
-#            print "sensor", sensor, " located"
             sensorKey = sensor
             leSensor = sensors[sensor]
             break
@@ -2265,11 +1920,9 @@ def getSenSite(gDict, sensorid, siteid, date, what):
 
     # We need to require that both site and sensor are active at the time
     # point of attachement
-    siteDate = leSite[HISTORY][0][TSTAMP]
-    sensorDate = leSensor[HISTORY][0][TSTAMP]
+    siteDate = leSite[HISTORY][0][H_TSTAMP]
+    sensorDate = leSensor[HISTORY][0][H_TSTAMP]
 
-#    print "site   date: ", siteDate
-#    print "sensor date: ", sensorDate
     if sensorDate < siteDate:
         print "Causality violation while {}. Quiting. {} newer than {}".format(what, siteid, sensorid)
         sys.exit()
@@ -2280,8 +1933,7 @@ def do_attachSensorToSite(gDict, args):
     """
     Function to attach a sensor to a site
     """
-#    checkArgs(laAction, args, 3)
-#    checkArgs(args, 4)
+
     (doThis, todo) = splitArgs(args, 4)
     fail = checkPresence(doThis, ["sensor","site", "hag", "date"], [])
     if fail["truth"]:
@@ -2303,20 +1955,16 @@ def do_attachSensorToSite(gDict, args):
     print "pairing: ", sensorid, siteid, date, fdu, "as", tag
     if tag not in pairs:
         pairs[tag] = {"ph":hag, HISTORY:[]}
-#    print "carry on"
-#    else:
-#        print tag, "already a valid pair"
-#        sys.exit()
-    tev = histoire(date,"attach", HSTATUS, "active");
+    tev = histoire(date,"attach", "active");
     insert(tev, pairs[tag][HISTORY])
 
-    tev = histoire(date,"attached to {}".format(ucSiteId), HSTATUS, "active");
+    tev = histoire(date,"attached to {}".format(ucSiteId), "active");
     insert(tev, gDict[SENSORS][sensorKey][HISTORY])
     msg = "{} installed at {}".format(sensorKey, siteKey)
-    event = histoire(date, msg, XDATE, date)
+    event = ulogger(date, msg)
     gDict[LOGGER].append(event)
     shist = gDict[SITES][siteKey][HISTORY]
-    tev = histoire(date,"{} attached".format(sensorKey), HSTATUS, "att");
+    tev = histoire(date,"{} attached".format(sensorKey), "att");
     insert(tev, shist)
 
 
@@ -2325,91 +1973,38 @@ def insert(stamp, aList):
     Function to insert a time stamp defined by "histoire()" into a list of
     these elements so that the list is always time sorted
     """
-    nTime = stamp[TSTAMP]
+    nTime = stamp[H_TSTAMP]
     lSize = len(aList)
-#    print "List size", lSize
-#    print aList
-#    print aList[0]
     if lSize == 0:
         aList.append(stamp)
-        end = histoire("01-01-3000","theEnd", HSTATUS, "dead")
+        end = histoire("01-01-3000","theEnd", "dead")
         aList.append(end)
     else:
         top = lSize - 1
         for i in range(0,top):
-            if nTime >= aList[i][TSTAMP] and nTime < aList[i+1][TSTAMP]:
-#                print "insertion point: " , i, stamp
+            if nTime >= aList[i][H_TSTAMP] and nTime < aList[i+1][H_TSTAMP]:
                 aList.insert(i+1,stamp)
                 break
 
-#def do_showSensorSite(gDict, args):
-#    """
-#    Function to examine the history of a sensor/site pair
-#    """
-#    checkArgs("activatesensorinsite", args, 3)
-##    if len(args) < 3:
-##        print "Invalid syntax, try:"
-##        print execute, "detachSensorsFromSite sensorID siteID DD/MM/YYYY"
-##        sys.exit()
-#    sensorid = args[0].lower()
-#    siteid = args[1].lower()
-#    date = args[2]
-#
-#    sites = gDict[SITES]
-#    sensors = gDict[SENSORS]
-#    siteKey = None
-#    sensorKey = None
-#    for site in sites.keys():
-#        sid = sites[site]["siteid"]
-#        if sid.lower() == siteid:
-#            print "site", sid, " located"
-#            siteKey = site
-#            
-#    for sensor in sensors.keys():
-#        sid = sensors[sensor]["sensorid"]
-#        if sid.lower() == sensorid:
-#            print "sensor", sid, " located"
-#            sensorKey = sensor
-#            
-#    if sensorKey is None:
-#        print "Invalid sensor: ", sensorid
-#    if siteKey is None:
-#        print "Invalid site: ", siteid
-#    pairs = gDict[PAIRS]
-#    tag = "{}|{}".format(siteKey, sensorKey)
-#    if tag not in pairs:
-#        print "Combination not in the dictionary: ", tag
-#        sys.exit()
-#    print "examining: ", sensorid, siteid, date, tag
-#    tev = histoire(date,"test", HSTATUS, "undef");
-#    status = getStatus(tev, pairs[tag])
-#    print tag, "@", date, status
-
 def getStatus(eve, things):
+
     nThings = len(things)
-#    print "List size", nThings
     if nThings == 0:
-#        print "Nothing to examine, sorry!"
         return "undef"
     else:
         top = nThings - 1
-#        print "length of things: ", nThings, top
-#        print things
-        nTime = eve[TSTAMP]
+        nTime = eve[H_TSTAMP]
         for i in range(0,top):
             thing = things[i]
-            hrTime = datetime.datetime.fromtimestamp( int(thing[TSTAMP])).strftime('%Y-%m-%d')
-#            print thing[HACTION], hrTime
-            if nTime >= things[i][TSTAMP] and nTime < things[i+1][TSTAMP]:
-#                print "insertion point: " , i, "status: ", things[i][HSTATUS]
-                return things[i][HSTATUS]
-#                break
+            hrTime = datetime.datetime.fromtimestamp( int(thing[H_TSTAMP])).strftime('%Y-%m-%d')
+            if nTime >= things[i][H_TSTAMP] and nTime < things[i+1][H_TSTAMP]:
+                return things[i][H_STATUS]
 
 def do_detachSensorFromSite(gDict, args):
     """
     Function to detach a sensor from a site
     """
-#    checkArgs(args, 3)
+
     (doThis, todo) = splitArgs(args, 3)
     fail = checkPresence(doThis, ["sensor","site", "date"], [])
     if fail["truth"]:
@@ -2426,7 +2021,6 @@ def do_detachSensorFromSite(gDict, args):
     if PAIRS not in gDict:
         print "No pairs have been defined yet. Doing nothing"
         sys.exit()
-#        gDict[PAIRS] = {}
     pairs = gDict[PAIRS]
     tag = "{}.{}".format(siteKey, sensorKey)
     print "Detaching: ", sensorid, siteid, date, fdu, tag
@@ -2435,17 +2029,16 @@ def do_detachSensorFromSite(gDict, args):
         # sensor from a non-existent pair
         print "{} is not a valid pair. Doing nothing".format(tag)
         sys.exit()
-#        pairs[tag] = []
-    tev = histoire(date,"detach", HSTATUS, "off");
+    tev = histoire(date,"detach", "off");
     insert(tev, pairs[tag][HISTORY])
     # modify the sensor's general history
     insert(tev, gDict[SENSORS][sensorKey][HISTORY])
 
     msg = "{} detached from {}".format(sensorKey, siteKey)
-    event = histoire(date, msg, XDATE, date)
+    event = ulogger(date, msg)
     gDict[LOGGER].append(event)
     shist = gDict[SITES][siteKey][HISTORY]
-    tev = histoire(date,"{} detached".format(sensorKey), HSTATUS, "kaput");
+    tev = histoire(date,"{} detached".format(sensorKey), "kaput");
     insert(tev, shist)
 
 def lcClone(gDict):
@@ -2472,7 +2065,6 @@ def lcClone(gDict):
             lsk = sk.lower()
             lskDot = lsk.replace("|", ".")
             lcdp[lskDot] = sk
-#            ass_et[lsk] = 2
             ass_et[lskDot] = 2
         pass
     if SENSORS in gDict:
@@ -2505,19 +2097,12 @@ def lcClone(gDict):
 if os.path.isfile(assetsFile):
     dfile = open(assetsFile,"r")
     jsonString = dfile.readline().rstrip('\n')
-#    print jsonString
     gDict = json.loads(jsonString)
-#    gDict = json.load(dfile.read())
     lcDict = lcClone(gDict)
-#    print "Alt-dict", lcDict
     dfile.close()
 else:
     gDict = {}
     gDict["time-offset"] = tOffsetDef
-#    gDict[LISTOFSITES] = []
-#    gDict[SITES] = {}
-#    gDict[LISTOFSENSORS] = []
-#    gDict[SENSORS] = {}
     gDict[LOGGER] = []
 
 tOffset = gDict["time-offset"] 
@@ -2626,851 +2211,3 @@ assetsBU.close()
 
 sys.exit()
 
-#extractData(name, entries, gDict)
-
-
-# The idea would be to have a system to generate functions to gather data
-# based on the HACTION requested rather than having code split in
-# different actions.
-# At return point, these functions should put the data in the global object 
-
-# Let's give it a try to this
-
-
-#p = '%Y-%m-%dT%H:%M:%S.%fZ'
-#p2 = '%Y-%m-%dT%H:%M:%SZ'
-#utcf = '%Y-%m-%dT%H:%M:%S'
-#
-#
-#def stringArray(origList):
-#    """
-#        Routine to return an array of numpy characters of shape
-#        (len(list), maxLen) as well as the number of elements in the list
-#        and the maximum length of the strings in the list
-#    """
-#    maxlen = 0
-#    for s in origList:
-#        if len(s) > maxlen:
-#            maxlen = len(s)
-#    listLen = len(origList)
-#    charMatrix = np.empty((listLen, maxlen), dtype='a1')
-#    charMatrix.fill(" ")
-#
-#    i = 0
-#    for s in origList:
-#        sarray = np.array(list(s), dtype='a1')
-#        sLen = len(s)
-#        charMatrix[i,0:sLen] = sarray[:]
-##        if sLen < maxlen:
-##            charMatrix[i,sLen] = 0
-##        if sLen+1 < maxlen:
-##        charMatrix[i,sLen:-1] = " "
-#        i += 1
-#
-#    return charMatrix, listLen, maxlen
-#
-##def extractStrings(cMatrix, indices):
-##    """
-##        Routine to return an subset of the lines stored in the cMatrix
-##        array. Details in of the incoming matrix need to be extracted at
-##        run-time rather than passed (just in case)
-##    """
-##    nXelements = len(indices)
-##    print "Elements to extract: ", nXelements
-##    print cMatrix.shape
-##    return
-##    maxlen = 0
-##    for s in origList:
-##        if len(s) > maxlen:
-##            maxlen = len(s)
-##    listLen = len(origList)
-##    charMatrix = np.empty((listLen, maxlen), dtype='a1')
-##    charMatrix.fill(" ")
-##
-##    i = 0
-##    for s in origList:
-##        sarray = np.array(list(s), dtype='a1')
-##        sLen = len(s)
-##        charMatrix[i,0:sLen] = sarray[:]
-##        i += 1
-##
-##    return charMatrix, listLen, maxlen
-#
-## get arguments from the command line to avoid having to edit this program
-## all the time!
-#nargs = len(sys.argv)
-#if nargs < 1:
-#    print "Usage: ", sys.argv[0], " csv-file [-validate]"
-#    sys.exit()
-#
-#print "Nargs ", nargs
-#
-#mytime = "2017-03-08T00:27:31.807Z"
-#epoch = datetime(1970, 1, 1)
-##print((datetime.strptime(mytime, p) - epoch).total_seconds())
-#
-#csvFile = sys.argv[1]
-#validate = False
-#if nargs == 3 and sys.argv[2] == "-validate":
-#    validate = True
-#
-#fileDate = csvFile.replace(".csv","")
-##ncdfFile = "../binary/" + csvFile.replace("csv","nc")
-#ncdfFile = csvFile.replace("csv","nc")
-#
-##column = int(sys.argv[2])
-##msd = {'co': 0, 'pm25': 1, 'pm10': 2, 'so2': 3, 'bc': 4,
-##'o3': 5 , 'no2': 6}
-#msd = {}
-#places = {}
-#stdPlaces = []
-#internal_place_id = {}
-#measured = {}
-#qperplace = {}
-#qpertime = {}
-#compo = {}
-#invalid = {}
-#skip = []
-#skip.append(0)
-#uniqueSiteTime = {}
-#sitesWithWrongUnits = {}
-#pollutants = {}
-#d_epoque = {}
-#d_siteInternal = {}
-#meta_sites = {}
-#meta_city = []
-#meta_country = []
-#meta_longitude = []
-#meta_latitude = []
-#meta_attributes = []
-#meta_dtz = []
-#meta_site = []
-#good_lines = []
-##meta_city = []
-#mainId = []
-#
-#lSiteId = []
-#lSensorId = []
-#lTimeStamp = []
-#lCO = []
-#lNO = []
-#lNO2 = []
-#lRH = []
-#lTemp = []
-#lBat = []
-#lNoise = []
-#lDate = []
-#dayDict = {}
-#monDict = {}
-#
-#file = open(csvFile, 'r') 
-#nLines = 0
-#for row in file:
-## siteId (char array)
-## sensorId (integer)
-## timeStamp (integer)
-## Carbon Monoxide
-## Nitric Oxide
-## Nitrogen Dioxide
-## Relative Humidity
-## Temperature
-## Battery
-## Noise
-#
-##    print row
-#
-#    siteId, sensorId, tstamp, uxTime, co, no, no2, rhum, temp, bat, noise = row.rstrip().split()
-#    lSiteId.append(siteId)
-#    lSensorId.append(int(sensorId))
-#    lTimeStamp.append(int(uxTime))
-#    lCO.append(float(co))
-#    lNO.append(float(no))
-#    lNO2.append(float(no2))
-#    lRH.append(float(rhum))
-#    lTemp.append(float(temp))
-#    lBat.append(float(bat))
-#    lNoise.append(float(noise))
-#    date, hour = tstamp.split("T")
-#    year, month, day = date.split("/")
-#    mond = '{}/{}'.format(year, month)
-#    lDate.append(tstamp)
-#    dayDict[date] = 1
-#    monDict[mond] = 1
-#    nLines += 1
-##    print siteId, sensorId, tstamp
-#
-#print "Number of lines: ", nLines
-#novalue = -32768
-#
-## data is already ingested, so it is time to create the big datafile.
-#sarrSiteId, nst, lenSites = stringArray(lSiteId)
-#print "Number of lines: ", nst, lenSites
-#
-#print "first site: ", sarrSiteId[0]
-#print "Months found: ", monDict.keys()
-##print "Days found: ", dayDict.keys()
-#
-#for bino in sorted(monDict.keys()):
-#    dino = bino.replace("/", "-")
-##    indices = np.where(bino in lDate)
-#    print "Selecting: ", bino, " / ", dino, " "
-#    indices = [i for i,s in enumerate(lDate) if bino in s]
-#
-##    print indices
-##    sDate = [lDate[i] for i in indices]
-##    break
-#    leFile = "{}.nc".format(dino)
-#    dbFile = Dataset(leFile, 'w', format='NETCDF4_CLASSIC')
-#    dbFile.createDimension('data_nDataPoints', len(indices))
-#    dbFile.createDimension('md_sitesLen', lenSites)
-#    
-#    dsiteId = dbFile.createVariable('siteId', 'S1', ('data_nDataPoints','md_sitesLen'), zlib=True)
-#    dsiteId.comment = 'Site Identifier'
-#    
-#    
-#    dataEpoch = dbFile.createVariable('dataEpoch', 'i4', ('data_nDataPoints',),zlib=True)
-#    dataEpoch.comment = "Unix Epoch for each observation to the second"
-#    dataEpoch.units = 'seconds since 1970, Jan 1, 00:00:00 UTC'
-#    
-#    # By using an internal integer index we're supposed to speed things up in
-#    # the searching. There is really no need to have a long string as the key
-#    # if an integer will do!
-#    dataSensorId = dbFile.createVariable('dataSensorId', 'i4', ('data_nDataPoints',),zlib=True)
-#    dataSensorId.comment = "Sensor-id. ID associated with the sensor, not where it is located"
-#    
-#    # Now we must define the variables associated to the particles, this is
-#    # goint to be dynamic
-#    
-#    xcompo = ["co", "no", "no2", "RelativeHumidity", "Temperature",
-#        "battery", "NoiseLevel"]
-#    
-#    data_co = dbFile.createVariable("CO", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_co.comment = "Air concentration of Carbon Monoxide"
-#    data_co.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#    
-#    data_no = dbFile.createVariable("NO", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_no.comment = "Air concentration of Nitric Oxide"
-#    data_no.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#    
-#    data_no2 = dbFile.createVariable("NO2", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_no2.comment = "Air concentration of Nitrogen Dioxide"
-#    data_no2.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#    
-#    xcompo = ["co", "no", "no2", "RelativeHumidity", "Temperature",
-#        "battery", "NoiseLevel"]
-#    
-#    data_rhum = dbFile.createVariable("RelativeHumidity", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_rhum.comment = "Air Relative Humidity"
-#    data_rhum.unit = "Percentage (%)"
-#    
-#    data_temp = dbFile.createVariable("AirTemperature", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_temp.comment = "Air Relative Humidity"
-#    data_temp.unit = "Celcius (C)"
-#    
-#    data_battery = dbFile.createVariable("Battery", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_battery.comment = "Battery level"
-#    data_battery.unit = "Volt"
-#    
-#    data_noise = dbFile.createVariable("NoiseLevel", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_noise.comment = "Noise Level"
-#    data_noise.unit = "Decibels"
-#    
-##    sDate = [lDate[i] for i in indices]
-#    dataSensorId[:] = [lSensorId[i] for i in indices]
-#    dataEpoch[:] =    [lTimeStamp[i] for i in indices]
-#    data_co[:] =      [lCO[i] for i in indices]
-#    data_no[:] =      [lNO[i] for i in indices]
-#    data_no2[:] =     [lNO2[i] for i in indices]
-#    data_rhum[:] =    [lRH[i] for i in indices]
-#    data_temp[:] =    [lTemp[i] for i in indices]
-#    data_battery[:] = [lBat[i] for i in indices]
-#    data_noise[:] =   [lNoise[i] for i in indices]
-#    dsiteId[:] = [sarrSiteId[i] for i in indices]
-##    dsiteId[:] = extractStrings(sarrSiteId, indices)
-#    
-#    dbFile.close()
-#    print leFile, " created"
-#
-#for bino in sorted(dayDict.keys()):
-#    dino = bino.replace("/", "-")
-##    indices = np.where(bino in lDate)
-#    print "Selecting: ", bino, " / ", dino, " "
-#    indices = [i for i,s in enumerate(lDate) if bino in s]
-#
-##    print indices
-##    sDate = [lDate[i] for i in indices]
-##    break
-#    leFile = "{}.nc".format(dino)
-#    dbFile = Dataset(leFile, 'w', format='NETCDF4_CLASSIC')
-#    dbFile.createDimension('data_nDataPoints', len(indices))
-#    dbFile.createDimension('md_sitesLen', lenSites)
-#    
-#    dsiteId = dbFile.createVariable('siteId', 'S1', ('data_nDataPoints','md_sitesLen'), zlib=True)
-#    dsiteId.comment = 'Site Identifier'
-#    
-#    
-#    dataEpoch = dbFile.createVariable('dataEpoch', 'i4', ('data_nDataPoints',),zlib=True)
-#    dataEpoch.comment = "Unix Epoch for each observation to the second"
-#    dataEpoch.units = 'seconds since 1970, Jan 1, 00:00:00 UTC'
-#    
-#    # By using an internal integer index we're supposed to speed things up in
-#    # the searching. There is really no need to have a long string as the key
-#    # if an integer will do!
-#    dataSensorId = dbFile.createVariable('dataSensorId', 'i4', ('data_nDataPoints',),zlib=True)
-#    dataSensorId.comment = "Sensor-id. ID associated with the sensor, not where it is located"
-#    
-#    # Now we must define the variables associated to the particles, this is
-#    # goint to be dynamic
-#    
-#    xcompo = ["co", "no", "no2", "RelativeHumidity", "Temperature",
-#        "battery", "NoiseLevel"]
-#    
-#    data_co = dbFile.createVariable("CO", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_co.comment = "Air concentration of Carbon Monoxide"
-#    data_co.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#    
-#    data_no = dbFile.createVariable("NO", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_no.comment = "Air concentration of Nitric Oxide"
-#    data_no.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#    
-#    data_no2 = dbFile.createVariable("NO2", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_no2.comment = "Air concentration of Nitrogen Dioxide"
-#    data_no2.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#    
-#    xcompo = ["co", "no", "no2", "RelativeHumidity", "Temperature",
-#        "battery", "NoiseLevel"]
-#    
-#    data_rhum = dbFile.createVariable("RelativeHumidity", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_rhum.comment = "Air Relative Humidity"
-#    data_rhum.unit = "Percentage (%)"
-#    
-#    data_temp = dbFile.createVariable("AirTemperature", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_temp.comment = "Air Relative Humidity"
-#    data_temp.unit = "Celcius (C)"
-#    
-#    data_battery = dbFile.createVariable("Battery", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_battery.comment = "Battery level"
-#    data_battery.unit = "Volt"
-#    
-#    data_noise = dbFile.createVariable("NoiseLevel", 'f4',
-#        ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#    data_noise.comment = "Noise Level"
-#    data_noise.unit = "Decibels"
-#    
-##    sDate = [lDate[i] for i in indices]
-#    dataSensorId[:] = [lSensorId[i] for i in indices]
-#    dataEpoch[:] =    [lTimeStamp[i] for i in indices]
-#    data_co[:] =      [lCO[i] for i in indices]
-#    data_no[:] =      [lNO[i] for i in indices]
-#    data_no2[:] =     [lNO2[i] for i in indices]
-#    data_rhum[:] =    [lRH[i] for i in indices]
-#    data_temp[:] =    [lTemp[i] for i in indices]
-#    data_battery[:] = [lBat[i] for i in indices]
-#    data_noise[:] =   [lNoise[i] for i in indices]
-#    dsiteId[:] = [sarrSiteId[i] for i in indices]
-##    dsiteId[:] = extractStrings(sarrSiteId, indices)
-#    
-#    dbFile.close()
-#    print leFile, " created"
-#
-#sys.exit()
-#print "Creating netcdf file: ", ncdfFile
-#
-#
-#dbFile = Dataset(ncdfFile, 'w', format='NETCDF4_CLASSIC')
-#dbFile.createDimension('data_nDataPoints', nLines)
-#dbFile.createDimension('md_sitesLen', lenSites)
-#
-#dsiteId = dbFile.createVariable('siteId', 'S1', ('data_nDataPoints','md_sitesLen'), zlib=True)
-#dsiteId.comment = 'Site Identifier'
-#
-#
-#dataEpoch = dbFile.createVariable('dataEpoch', 'i4', ('data_nDataPoints',),zlib=True)
-#dataEpoch.comment = "Unix Epoch for each observation to the second"
-#dataEpoch.units = 'seconds since 1970, Jan 1, 00:00:00 UTC'
-#
-## By using an internal integer index we're supposed to speed things up in
-## the searching. There is really no need to have a long string as the key
-## if an integer will do!
-#dataSensorId = dbFile.createVariable('dataSensorId', 'i4', ('data_nDataPoints',),zlib=True)
-#dataSensorId.comment = "Sensor-id. ID associated with the sensor, not where it is located"
-#
-## Now we must define the variables associated to the particles, this is
-## goint to be dynamic
-#
-#xcompo = ["co", "no", "no2", "RelativeHumidity", "Temperature",
-#    "battery", "NoiseLevel"]
-#
-#data_co = dbFile.createVariable("CO", 'f4',
-#    ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#data_co.comment = "Air concentration of Carbon Monoxide"
-#data_co.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#
-#data_no = dbFile.createVariable("NO", 'f4',
-#    ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#data_no.comment = "Air concentration of Nitric Oxide"
-#data_no.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#
-#data_no2 = dbFile.createVariable("NO2", 'f4',
-#    ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#data_no2.comment = "Air concentration of Nitrogen Dioxide"
-#data_no2.unit = "micro-grams per cubic meter [mu-g/m^3]"
-#
-#xcompo = ["co", "no", "no2", "RelativeHumidity", "Temperature",
-#    "battery", "NoiseLevel"]
-#
-#data_rhum = dbFile.createVariable("RelativeHumidity", 'f4',
-#    ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#data_rhum.comment = "Air Relative Humidity"
-#data_rhum.unit = "Percentage (%)"
-#
-#data_temp = dbFile.createVariable("AirTemperature", 'f4',
-#    ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#data_temp.comment = "Air Relative Humidity"
-#data_temp.unit = "Celcius (C)"
-#
-#data_battery = dbFile.createVariable("Battery", 'f4',
-#    ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#data_battery.comment = "Battery level"
-#data_battery.unit = "Volt"
-#
-#data_noise = dbFile.createVariable("NoiseLevel", 'f4',
-#    ('data_nDataPoints',),zlib=True, fill_value=novalue)
-#data_noise.comment = "Noise Level"
-#data_noise.unit = "Decibels"
-#
-#dsiteId[:] = sarrSiteId
-#dataSensorId[:] =     lSensorId
-#dataEpoch[:] =     lTimeStamp
-#data_co[:] =     lCO
-#data_no[:] =     lNO
-#data_no2[:] =     lNO2
-#data_rhum[:] =     lRH
-#data_temp[:] =     lTemp
-#data_battery[:] =     lBat
-#data_noise[:] =     lNoise
-#
-#dbFile.close()
-#
-#sys.exit()
-#
-#with open(csvFile, mode='r') as infile:
-#    reader = csv.reader(infile)
-#    lesRows = list(reader)
-#    nrows = len(lesRows)
-#    print nrows, len(lesRows)
-#
-#    for row in lesRows:
-## siteId (char array)
-## sensorId (integer)
-## timeStamp (integer)
-## Carbon Monoxide
-## Nitric Oxide
-## Nitrogen Dioxide
-## Relative Humidity
-## Temperature
-## Battery
-## Noise
-#        print row
-#        siteId, sensorId, tstamp, uxTime, co, no, no2, rhum, temp, bat, noise = row[0].split()
-#        print siteId, sensorId
-#    sys.exit()
-#
-##    dmat = np.zeros( (nrows ,8), np.float )
-##    dmat.fill(-32768)
-##    print dmat
-#    nrows = 0
-#    nWrongDate = 0
-#    nWrongUnit = 0
-##    for row in reader:
-#    duplicated = {}
-#    duplicatedValue = {}
-#    siteCounter = 0
-#    for row in lesRows:
-## siteId (char array)
-## sensorId (integer)
-## timeStamp (integer)
-## Carbon Monoxide
-## Nitric Oxide
-## Nitrogen Dioxide
-## Relative Humidity
-## Temperature
-## Battery
-## Noise
-#        siteId, sensorId, tstamp, uxTime, co, no, no2, rhum, temp, bat, noise = row[:]
-#        if nrows > 0:
-#            # form a key with lat/lon + location-city-country
-##            print row[8], row[9]
-#            # ignore entries without lat/lon data
-#            site, city, country, zulu, loct, comp, vcomp, unit, lat, lon, ass = row[:]
-##            print site, city, country, zulu, loct, comp, vcomp, unit, lat, lon, ass , row
-##            siteId =  "{:s}|{:s}|{:s}".format( site, city, country)
-#            siteId =  "{:s}|{:s}|{:s}".format( country.lower(),
-#                    city.rstrip().lower(), site.rstrip().lower())
-##            dkey = "{:s} {:s} {:s} {:s}".format(lat, lon, zulu  ,comp)
-#            epoque = (datetime.strptime(zulu, p) - epoch).total_seconds()
-#            uniqueSiteTS = "{} {}".format(epoque  ,siteId)
-#            dkey = "{} {} {}".format(siteId, epoque  ,comp)
-#            if (lat == "" or lon == "") or \
-#               (float(lat) == 0.0 or float(lon) == 0.0):
-##                print "Invalid row: ", row
-#                invalid[siteId] = 1
-#                skip.append(nrows)
-#            elif dkey in duplicated:
-#                duplicated[dkey] += 1
-#                duplicatedValue[dkey].append(row[6])
-#                skip.append(nrows)
-#            elif "ppm" in unit:
-#                nWrongUnit += 1
-#                sitesWithWrongUnits[site] = "{} {} {} {}".format(site,
-#                                            city, country, unit)
-#                skip.append(nrows)
-#            elif fileDate not in zulu:
-##                print uniqueSiteTS, zulu
-#                nWrongDate += 1
-#                skip.append(nrows)
-#            else:
-#                duplicated[dkey] = 1
-#                duplicatedValue[dkey] = []
-#                duplicatedValue[dkey].append(row[6])
-#                compo[comp] = 1
-#                uniqueSiteTime[uniqueSiteTS] = 1
-#                # and to do the on-spot validation instead of using another
-#                # script:
-#
-#                good_lines.append(row)
-#
-#                # ready to store data so that we can retrieve it to form
-#                # both the metadata and the data of the netcdf file
-#
-#                # this is the metadata part...
-#                if siteId not in meta_sites:
-#                    meta_sites[siteId] = siteCounter
-#                    mainId.append(siteCounter)
-#                    meta_site.append( site)
-#                    meta_city.append( city)
-#                    meta_country.append( country)
-#                    meta_longitude.append( float(lon))
-#                    meta_latitude.append( float(lat))
-#                    meta_attributes.append( ass)
-#                    sdtime = loct[19:]
-#                    hours, minutes = sdtime.split(":")
-#                    dtime = float(hours)
-#                    if "-" in hours:
-#                        dtime -= float(minutes)/60.
-#                    else:
-#                        dtime += float(minutes)/60.
-#                    meta_dtz.append( dtime)
-#                    siteCounter += 1
-#
-#                # this is the data part...
-#                if comp not in pollutants:
-#                    pollutants[comp] = {}
-#                pollutants[comp][uniqueSiteTS] = vcomp
-#                d_epoque[uniqueSiteTS] = epoque
-#                d_siteInternal[uniqueSiteTS] = meta_sites[siteId]
-#        nrows += 1
-#
-#    xcompo = sorted(compo.keys())
-#    print "dict of particles: ", compo
-#    print "List of particles: ", xcompo
-#    peq = 0
-#    for com in xcompo:
-#        msd[com] = peq
-#        peq += 1
-#    print "new dict of particles: ", msd
-#
-#    print "Sites without Lon/lat", len(invalid.keys())
-##    for site in sorted(invalid.keys()):
-##        print "Invalid Lat/Lon: ", site
-#
-#    print "sites with ppm as unit:", len(sitesWithWrongUnits.keys())
-##    for site in sorted(sitesWithWrongUnits.keys()):
-##        print "wrong Unit site: ", site, sitesWithWrongUnits[site]
-#
-#    for dup in duplicated.keys():
-#        if duplicated[dup] > 1:
-#            print "Duplicated entry: ", dup, duplicated[dup], duplicatedValue[dup]
-#
-#    # to see if the first part is OK
-#    print "Rows to skip: ", len(skip), nrows
-#    print "NRows with wrong date: ", nWrongDate, nrows
-#    print "NRows with wrong units: ", nWrongUnit, nrows
-#nDataPoints =  len(uniqueSiteTime.keys())
-#print "Nummer of unique site/time combos: ", len(uniqueSiteTime.keys())
-#
-#novalue = -32768
-#
-#pdict = {}  # the data dictionary, keys are pollutants, values are numpy arrays
-#            # initialised to novalue
-#
-#sortedUniqueEntries = sorted(uniqueSiteTime.keys())
-#
-#pos = 0
-#dEpoque = np.zeros( (nDataPoints ), np.int )
-#dSiteId =  np.zeros( (nDataPoints ), np.int )
-#dEpoque.fill(-32768)
-#dSiteId.fill(-32768)
-#
-## initialise the pollutants arrays
-#for pol in xcompo:
-#    pdict[pol] = np.zeros( (nDataPoints ), np.float )
-#    pdict[pol].fill(-32768)
-#
-#for sue in sortedUniqueEntries:
-#    dSiteId[pos] = d_siteInternal[sue]
-#    dEpoque[pos] = d_epoque[sue]
-#    for pol in xcompo:
-#        if sue in pollutants[pol]:
-#                pdict[pol][pos] = pollutants[pol][sue]
-#    pos += 1
-#
-#
-##print meta_site
-#print "Number of cities: ", len(meta_site)
-#
-## we should be able to put everything into arrays and then pass it onto
-## the file writer.
-#
-##                    meta_site.append( site)
-##                    meta_city.append( city)
-##                    meta_country.append( country)
-##                    meta_attributes.append( ass)
-##                    sdtime = loct[19:]
-##                    hours, minutes = sdtime.split(":")
-##                    dtime = float(hours)
-##                    if "-" in hours:
-##                        dtime -= float(minutes)/60.
-##                    else:
-##                        dtime += float(minutes)/60.
-##                    meta_dtz.append( dtime)
-##                    meta_longitude.append( float(lon))
-##                    meta_latitude.append( float(lat))
-#print "Sanity check for id: ", len(mainId), len(meta_site)
-##sarrMainKey, nStations, lenMainKey = stringArray(mainKey)
-#sarrSites, nStations, lenSites = stringArray(meta_site)
-#sarrCities, nst, lenCities = stringArray(meta_city)
-#sarrCountries, nst, lenCountries = stringArray(meta_country)
-#sarrAttributes, nst, lenAttributes = stringArray(meta_attributes)
-##sarrSiteKey, nPoints, maxSiteLen = stringArray(siteKey)
-##sarrSiteId, nPoints, maxSiteIdLen = stringArray(leSiteId)
-#
-##sarrCites = np.empty((nst, 40), dtype='a1')
-##
-##i = 0
-##for s in cities:
-##        sarray = np.array(list(s), dtype='a1')
-###        sLen = len(s)
-##        sarrCites[i,0:len(s)] = sarray[:]
-##        sarrCites[i,len(s):-1] = " "
-##        i += 1
-#
-#print "NsiteKeys: ", len(mainId)
-#print "N-Stations: ", nStations, nst
-#print "N-datapoints: ", nDataPoints
-#print "Max len cities: ", lenCities
-#print "Max sites len: ", lenSites
-#print "Max attributes len: ", lenAttributes
-#
-#
-#print "Creating netcdf file: ", ncdfFile
-#dbFile = Dataset(ncdfFile, 'w', format='NETCDF4_CLASSIC')
-#dbFile.createDimension('md_nStations', nStations)
-#dbFile.createDimension('data_nDataPoints', nDataPoints)
-##dbFile.createDimension('md_keyLen', lenMainKey)
-#dbFile.createDimension('md_sitesLen', lenSites)
-#dbFile.createDimension('md_cityLen', lenCities)
-#dbFile.createDimension('md_countryLen', lenCountries)
-#dbFile.createDimension('md_attributeLen', lenAttributes)
-#dsite = dbFile.createVariable('md_site', 'S1', ('md_nStations','md_sitesLen'), zlib=True)
-#dsite.comment = 'Site name, as provided in the original data-files'
-#
-##dsiteKey = dbFile.createVariable('md_siteKey', 'S1', ('md_nStations','md_keyLen'), zlib=True)
-##dsiteKey.comment = 'Site key, common for both tables'
-#
-#dsiteid = dbFile.createVariable('md_siteId', 'i4', ('md_nStations'), zlib=True)
-#dsiteid.comment = 'Internal site ID for this file only'
-#
-#latitude = dbFile.createVariable('md_latitude', 'f4', ('md_nStations',), zlib=True)
-#latitude.units = 'degree_north'
-#latitude.comment = 'Latitude as given in the original data'
-#
-#longitude = dbFile.createVariable('md_longitude', 'f4', ('md_nStations',), zlib=True)
-#longitude.units = 'degree_east'
-#longitude.comment = 'Longitude as given in the original data'
-#
-#dtimez = dbFile.createVariable('md_TZ-ZULU', 'f4', ('md_nStations',), zlib=True)
-#dtimez.comment = 'Difference of local time respect to GMT'
-#dtimez.units = "Decimal hours"
-#
-#dcityKey = dbFile.createVariable('md_city', 'S1', ('md_nStations','md_cityLen'), zlib=True)
-#dcityKey.comment = 'City name (but it could be province, state, or other'
-#
-#dcountry = dbFile.createVariable('md_country', 'S1', ('md_nStations','md_countryLen'), zlib=True)
-#dcountry.comment = 'Two letter country code'
-#
-##sarrAttributes, nst, lenAttributes = stringArray(attributes)
-#datts = dbFile.createVariable('md_attributes', 'S1', ('md_nStations','md_attributeLen'), zlib=True)
-#datts.comment = 'Attributes as given by data provider'
-#
-## Define now the data variables
-##datasiteKey = dbFile.createVariable('data_siteKey', 'S1', ('data_nDataPoints','md_keyLen'), zlib=True)
-##datasiteKey.comment = 'Site key, values are common for both tables'
-#
-#dataEpoch = dbFile.createVariable('dataEpoch', 'i4', ('data_nDataPoints',),zlib=True)
-#dataEpoch.comment = "Unix Epoch for each observation to the second"
-#dataEpoch.units = 'seconds since 1970, Jan 1, 00:00:00 UTC'
-#
-## By using an internal integer index we're supposed to speed things up in
-## the searching. There is really no need to have a long string as the key
-## if an integer will do!
-#dataSiteId = dbFile.createVariable('dataSiteId', 'i4', ('data_nDataPoints',),zlib=True)
-#dataSiteId.comment = "site-id internal index, valid for this file only"
-#
-## Now we must define the variables associated to the particles, this is
-## goint to be dynamic
-#
-#peq = 0
-#cvars = []
-#for com in xcompo:
-#    cvars.append(dbFile.createVariable(com, 'f4',
-#    ('data_nDataPoints',),zlib=True, fill_value=novalue))
-#    cvars[-1].comment = "Air concentration of {:s}".format(com)
-#    cvars[-1].unit = "micro-grams per cubic meter [mu-g/m^3]"
-##    peq += 1
-#
-#
-##dsiteKey = dbFile.createVariable('siteKeyMD', 'S1', ('keyLen', 'nStations'), zlib=True)
-##latitude = dbFile.createVariable('latitude', 'f4', ('nStations',))
-##longitude = dbFile.createVariable('longitude', 'f4', ('nStations',))
-#dsite[:] = sarrSites
-##                    meta_dtz.append( dtime)
-##                    meta_longitude.append( float(lon))
-##                    meta_latitude.append( float(lat))
-#latitude[:] = meta_latitude
-#longitude[:] = meta_longitude
-#dtimez[:] = meta_dtz
-##dsiteKey[:] = sarrMainKey
-#dsiteid[:] = mainId
-#dcityKey[:] = sarrCities
-##dcityKey[:] = sarrCites
-#dcountry[:] = sarrCountries 
-#datts[:] = sarrAttributes
-#
-#dataEpoch[:] = dEpoque
-#dataSiteId[:] = dSiteId
-#
-## closing before data are rearranged and written:
-#
-#col = 0
-#for com in xcompo:
-##    cvars[col][:] = dmat[:,col]
-##    aa = dmat[:,col]
-#    cvars[col][:] = pdict[com]
-#    col += 1
-#
-#dbFile.close()
-#
-#
-## we may want to do an immediate data verification, and for that we saved
-## the participating lines and we will read the file one more time
-#if not validate:
-#    print "No validation/consistency/sanity-check will be performed now"
-#    sys.exit()
-#
-## Let's open the file and then try to get the information we need...
-#verFile = Dataset(ncdfFile, 'r')
-#vdEpoch = verFile.variables["dataEpoch"][:]
-#vdSiteId = verFile.variables['dataSiteId'][:]
-#md_siteId = verFile.variables['md_siteId'][:]
-#md_site = verFile.variables['md_site'][:]
-#md_city = verFile.variables['md_city'][:]
-#md_country = verFile.variables['md_country'][:]
-#
-#nsta = len(md_siteId)
-#print "From the recently open file, nStations: ", nsta
-#siteEquiv = {}
-#for i in range(0, nsta):
-#    site = ''.join(md_site[i]).rstrip()
-#    city = ''.join(md_city[i]).rstrip()
-#    country = ''.join(md_country[i]).rstrip()
-#    key = '{:s}|{:s}|{:s}'.format(site, city, country)
-#    siteEquiv[key] = md_siteId[i]
-##    print "SCHK1", i, site, key, siteEquiv[key]
-#
-##sys.exit()
-#
-#print "About to validate the recently created file"
-#nerrors = 0
-#for row in good_lines:
-#    site, city, country, zulu, loct, comp, vcomp, unit, lat, lon, ass = row[:]
-#    epoque = (datetime.strptime(zulu, p) - epoch).total_seconds()
-#    siteId =  "{:s}|{:s}|{:s}".format( site.rstrip(), city.rstrip(), country)
-#    xsid = siteEquiv[siteId]
-#    o_indx = np.where(np.logical_and(vdEpoch == epoque, vdSiteId == xsid))[0]
-#    dcomp = verFile.variables[comp][o_indx[0]]
-#    fcomp = float(vcomp)
-##    if fcomp != dcomp:
-#    dval = fcomp - dcomp
-#    if abs(dval) > 1e-4:
-#        parts = vcomp.split('.')
-#        fmt = '{:.'+'{}'.format(len(parts[-1]))+'f}'
-##        print parts, fmt
-#        stPol = fmt.format(dcomp)
-#        if stPol != vcomp:
-#            print "ISOT: ", siteId, site, o_indx, comp, vcomp, stPol, dcomp, fcomp, dval
-#            nerrors += 1
-#
-#print "Number of errors: ", nerrors
-#sys.exit()
-#
-## These are pure data, and I'd like to arrange each of them according to
-## sorted epoch, after all, we are dealing with a time based database, and
-## time series extracted from the data as a per station, should have their
-## timestamps sorted, and every data involved with it as well.
-#
-#nepoch = np.array(lepoch)
-#sortInd = nepoch.argsort()
-##sortedEpochIndices = np.array([i[0] for i in sorted(enumerate(lepoch), key=lambda x:x[1])])
-#print "SortaInd: ", sortInd
-#print min(lepoch) #, nepoch[sortInd[0]]
-#print "Type(lepoch): ", type(lepoch)
-#print "Type(nepoch): ", type(nepoch)
-#
-#sepoch = nepoch[sortInd]
-#sid = np.array(leSiteId)
-#print min(lepoch), max(lepoch)
-#print sepoch
-#
-##dataEpoch[:] = lepoch
-##dataSiteId[:] = leSiteId
-#
-##print "About shapes: "
-##print "sortInd: ", np.shape(sortInd)
-##print "cvars: ", np.shape(cvars)
-##print "Going for the assignments "
-#
-#
-#
-#col = 0
-#for com in xcompo:
-##    cvars[col][:] = dmat[:,col]
-#    aa = dmat[:,col]
-#    cvars[col][:] = aa[sortInd]
-#    col += 1
-#dbFile.close()
-#
-#

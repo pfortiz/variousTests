@@ -1,0 +1,448 @@
+
+\documentclass[12pt]{amsart}
+\usepackage{geometry} % see geometry.pdf on how to lay out the page. There's lots.
+\geometry{a4paper} % or letter or a5paper or ... etc
+% \geometry{landscape} % rotated page geometry
+
+% See the ``Article customise'' template for come common customisations
+
+\title{Urban flows assets management stories}
+\author{Patricio F. Ortiz}
+%\date{December 8th, 2017} % delete this line to display the current date
+
+%%% BEGIN DOCUMENT
+\parskip=1.5ex
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Introduction}
+This document introduces the way information about the assets associated with the Urban Flows Observatory Sheffield is handled from a managerial point of view. The system was designed around the concept of a flexible way to store the assets' primary information as well as their operational status at any given time from the beginning of the project.
+
+\subsection{Kinds of assets}
+
+For the case of static observations, we decided to define three types of assets:
+\begin{description}
+\item[Site] represents the physical location where measurements will be carried. The following fields are associated with a site: latitude, longitude, height above sea level, street address, city, country and site's operator's details (institution, contact's name, phone number, email). Each site must have a unique name.
+
+\item[Sensor] represents a group of instruments or detectors usually packed in a "box" by a certain provider devoted to measuring different quantities. The data from this set of instruments is recovered by the provider, and it is then pulled by our servers at regular intervals. 
+
+Each {\bf sensor} should have a unique-id, something short but meaningful, as well as information about its serial number, details about its frequency of maintenance, how often data will be retrieved from it, its source of energy (mains, batteries, solar, etc.). It should also be clear who the provider is, (e.g., EnviroWatch), a contact name, number and email.
+
+Internally, data for all sensors which provide the same information and have the same provider will be kept as individual tables (in a database), hence, the need to assoaciate to each sensor a "family" unique identifier. The "family-ID" shall be chosen from a well-defined set of values defined in the project.
+
+Each {\bf sensor}, as mentioned earlier, consists of a set of instruments. Each instrument is characterised by the quantity it measures, the units in which that quantity is measured, and the intrinsic uncertainty associated with each measurement.  These elements are described as part of the {\bf sensor} asset.  Each detector should be known as {\bf sensorid}.{\bf detector-name},  for example: MOT701.Noise
+
+\item[Pair] (site, sensor) is defined for our purposes when a {\bf sensor} is deployed on a {\bf site} and it starts collecting data.    {\bf Sites} are immutable, but {\bf sensors} can move around and be installed in different sites (in principle).   A valid pair lasts for the time a sensor is attached to a site, and it is combined information from the site and the sensor what makes it to the front end of our data deployment website. 
+
+{\bf Pairs}  have well defined periods of operation. It is important that when data is requested for a given point in time, only data from the operational pairs is presented to users.
+
+A {\bf pair} has the quantity {\tt height\_above\_ground} associated with it simply because this quantity only makes sense once a {\bf sensor} is deployed on a {\bf site}.
+
+A {\bf site} may contain several {\bf sensors}, but of course, a {\bf sensor} can be deployed on one site only (at any given time).
+
+\end{description}
+
+{\bf Sites}, {\bf Sensors}, {\bf Detectors} and {\bf pairs}  have a history associated with each of them.  The {\bf history} is the most relevant piece of information of each of the assets as information can be incorporated to their history at will, allowing for the "marking" of periods of time containing either valid data or not. Only valid data should be presented in the web interface though.
+
+{\bf Sites}, {\bf Sensors}, {\bf Detectors} and {\bf pairs}  carry a field in the history called "status" which indicates their data collection status. When {\bf status=on}, the asset is operating normally, collecting reliable data. Any other value of {\bf status}  indicates the asset is not operating normally, that data are not being collected or they are unreliable.
+
+For each asset, history allows recovering the periods in which  its status is constant between two dates. More on this issue in the section about {\tt uam}.
+
+
+\section{How information is organised}
+
+I have decided to use a Json (or Python) style dictionary to store the different parts of the information. The following structure shows roughly how information is organised and  stored:
+
+\begin{verbatim}
+dictionary {
+   - sensors {
+     -sensor {  
+       -basic information
+       -history
+       -detectors {
+          - single detector {
+             - basic information
+             - history
+          }
+          ...
+       }
+     }
+     ...
+   }
+   - sites {
+     - site {
+       - basic information
+       - history
+     }
+     ...
+   }
+
+   - pairs {
+     - pair { sensorid, siteid, history }
+     ...
+   }
+}  
+\end{verbatim}
+
+\section{uam: the  program to handle the assets information}
+
+There is one piece of code, called {\tt uam} (for Urban-Flows Assets Manager) which I created to handle the input, storage and retrieval of asset information.
+
+{\tt uam} is a command line tool written in Python, accessible only to selected users and not directly accessible through a web-interface for security reasons.
+
+However, all the web scripts which need to collect and display data for the project will use {\bf uam} to retrieve the information about all the assets available at any given time, not just the current epoch.
+
+{\bf uam} can also be used by scripts devoted to doing some data analytics to mark zones where the sensors/detectors are producing wrong results, and as such, they should not be used either for the web-display nor scientific purposes.  The collected data is not affected at all by these "flagging operations", all that information is kept as a form of meta-data in the assets' data.
+
+{\bf uam} uses a default, hard-coded location for keeping the information, but it can be changed. Using the argument {\tt src=valid-path} in any of uam's actions, including the ones creating the assets' file, it will be that location the one used instead of the default one.
+
+
+Assuming that {\tt uam} is in your path, just by running {\tt uam} will give you a message telling you which options are available to use. I will call these options {\bf actions}.
+
+{\tt uam} syntax is {\tt uam <action> arguments}
+
+The following actions are currently supported:
+
+\begin{description}
+\item[getInputTemplate] {\tt type=site | type=sensor [n=P]} 
+
+Use it to generate a template file to input either sensor or site data using option {\tt addSitesFromFile} or {\tt addSensorsFromFile}.
+
+Only the mandatory fields in each case are shown. If you have any other piece of information, insert a line between {\tt begin.asset} and {\tt end.asset} in the form of a key=value pair, {\it e.g.}, added-by:YOUR-INITIALS. 
+
+Note that any date entered must follow the format "DD-MM-YYYY", and if you need to enter dates and times, you must use the format "DD-MM-YYYYThh:mm:ss"
+
+This action dumps the output to stdout if the filename is not specified. (*)
+
+\noindent{\bf Note:} the values associated with {\tt siteId} and {\tt sensorId} are case sensitive.
+
+\item[addSitesFromFile] {\tt file=filename} 
+
+Use it to add sites to the database.  The time sites in this file were added is recorded in its history for future reference purposes.
+
+{\tt siteid} shall be a unique identifier within the list of sites. This identifier is used to identify site-sensor pairs.
+
+The entry labelled {\tt firstdate} refers to the date in which the site was open for operations.
+
+Longitude and latitude should be entered in degrees, and they should have at least five decimal places to achieve a resolution of around 1 metre. A site is an area possibly ranging from 3 to 12 square metres around the nominal location.
+
+\noindent{\bf Note:} {\tt siteId} is case sensitive.
+
+\item[addSensorsFromFile] {\tt filename }
+
+Use it to add sensors to the database.  The time sensors in this file were added is recorded in its history for future reference purposes.
+
+{\tt sensorid} shall be a unique identifier within the list of sensors. This identifier is used to identify site-sensor pairs. Sensors from the same provider should probably see this reflected in this field.
+
+The entry labelled {\tt firstdate} refers to the date in which the sensor was acquired.
+
+A sensor is a set of various detectors. Each detector must be properly described at input time. The name of the quantity measured, the units in which this quantity is measured, and the nominal uncertainty of the measurements shall be entered on a single line.
+
+Note that further down the line, the sensor will have to be attached to a site to be considered operational (use {\tt uam attachsensortosite}). This, however, does not mark the sensor as acquiring meaningful data, as in Newcastle's experience, some sensors need some time to stabilise before their data can be considered reliable.
+
+Use {\tt uam activateSensorInSite} to indicate the moment in which the sensor is producing reliable data.
+
+The history component {\tt status} carries this information, and the last operation sets this status to "on". Any other value for status is interpreted as "no good data produced". Ths {\tt status} applies to all detectors within a sensor, but individual detectors may have extra entries affecting their status. This feature is needed when one of the detectors in a sensor seems to be failing but the rest are working correctly.
+
+\noindent{\bf Note:} {\tt sensorId} is case sensitive.
+
+\item[attachSensorToSite] {\tt sensorID siteID height\_above\_ground\_[m] date }
+
+Creates a (site, sensor) pair if it does not exist indicating the date in which a sensor was installed (deployed) on a site.
+
+The sensor's status is not marked as "on" yet as the settling time may be non-zero.
+
+The "height above ground" is a quantity needed to  characterise the measurements fully. 
+This quantity is not intrinsic to a site nor a sensor. Hence I decided to associate it with the (site, sensor) pair. Note that if the sensors are located on top of a building, it is the height from the street level what should be entered, that is, the height of the roof plus the height above the roof.
+
+Given that a site may host several sensors, and the definition of a site is not a point in space, but instead a small area, sensors attached to a site may share the same value of "height above ground".
+
+\item[detachSensorFromSite] {\tt sensorID siteID  date} 
+
+Due to maintenance reasons or because a site has closed or because a sensor will be deployed on another site, it is necessary to record that a pair (site, sensor) is not active starting from a certain date on.
+
+This action affects the site-sensor pair history. 
+
+If the reason to detach a sensor from a site was maintenance, then issuing a {\tt attachSensorToSite} followed by {\tt activateSensorInSite} at a later date will make the site-sensor pair active again.
+
+Because {\tt uam} works with the history of sites, sensors, site-sensor pairs and sensor-detectors pairs, when users request information for a given date, only the active (status="on") assets are shown to them.
+
+\item[activateSensorInSite] {\tt sensorID siteID date}
+
+Use it to mark the time (date) in which a sensor attached to a site starts collecting meaningful data.
+
+The reason to introduce this operation is that  there is a period after a sensor has been activated/deployed where data is not 100\% reliable. As this period is sensor-dependent, no assumption was made as to how long it will take for the sensor to be collecting reliable data.
+
+This action can be issued right after {\tt attachsensortosite} if one is sure about the period needed to acquire good data. The alternative is to issue this action after some data has been analysed and the time in which stability has been determined. 
+
+Either way, if this action is not issued, the data collected by this sensor shall not be shown in the web interface, although raw data will be collected from its source.
+
+\item[deactivateSensorInSite] {\tt sensorID siteID date}
+
+This action is deprecated as it can be achieved with 
+
+\noindent{\tt uam addInfo flag pairid=sensorid:siteid msg='mmm' status=off \\
+date=DD-MM-YYY[Thh:mm:ss.s] }
+
+\item[deactivateSite] {\tt siteID date}
+
+This action is deprecated as it can be achieved with 
+
+\noindent{\tt uam addInfo flag siteid=siteid msg='mmm' status=off \\
+date=DD-MM-YYY[Thh:mm:ss.s] }
+
+\item[addinfo] is a generic action to add information about assets at any point in time. It follows the generic syntax:
+
+\noindent {\tt uam addInfo information arguments}
+
+{\tt arguments} depend on the information being added. There two types of arguments: mandatory and "one in a list", like alternatives in a multiple choice question.
+
+{\tt information} can be any of [flag, field, log, maintenance] and the arguments for each case are listed below.
+
+\begin{description}
+\item[flag] Changes the "status" field in the history of the requested assets. Mandatory arguments are: {\tt status=xx}, {\tt msg='mm'},  {\tt value=vv}, and\\
+ {\tt date=DD-MM-YY[Thh:mm:ss]}. 
+
+{\tt assetId} is mandatory, but it takes any of the following forms: 
+
+{\tt siteid=xx} if you intend to modify the status of a {\bf site} at a given date.
+
+{\tt sensorid=xx} if you intend to modify the status of a {\bf sensor} at a given date.
+
+{\tt pairId=siteId,sensorId} if you intend to modify the status of a {\bf site-sensor} pair at a given date.
+
+{\tt detid=sensorId,detectorId} if you intend to modify the status of a {\bf detector} within {\bf site} at a given date.
+
+The {\tt msg} argument is used to add a message to the respective history.
+
+Note that status changes applied to a {\bf sensor} affect all detectors associated with it. If you need to change the status of a single detector within a sensor, you must specify  assetId as {\bf detid}.
+
+Note also that status changes applied to a {\bf site} do not apply to any site-sensor pair associated with it.
+
+\item[field] Allows you to add fields -dictionary entries- to sites, sensors and site-sensor pairs. This is information you did not have the chance to enter initially, but you now consider being relevant.
+
+Mandatory arguments are: {\tt fname=xx} (field name) , {\tt fvalue='vv'} (field value).
+
+This action allows you to add notes to any possible asset. Just give the field the name "note".
+
+\item[log] allows you to add entries to the global log for a given date.
+
+These are entries which resemble annotations, and they do not modify the status of any site, sensor, detector or pair.
+
+\item[maintenance]
+
+\end{description}
+
+\item[show] {\tt action arguments}
+
+{\bf show} is a multi-purpose operator, as it is capable of displaying information of individual assets as well as the entries log and the events sorted by time. "show" also displays the whole content of the default "dictionary" file or any previous version of it. 
+
+{\tt uam show operational} shows all operational assets at any given time during the project (default, current date), and it is the command to be used by the web application to determine which assets are to be displayed because they are operational at the requested date.
+
+Only assets with a status "on" are considered to be operational.
+
+\item[identify]{\tt asset status arguments}
+
+The "identify" action examines the history of an asset to determine the periods in which "status" has a given value.
+
+The following values can be used for an asset: {\tt site, sensor, detector} and {\tt pair}.  If an asterisk appears next to the name of an asset, all assets of the desired type which match that pattern will be shown.
+
+Identify also accepts a range of dates (from=, to=) to narrow down the search interval.
+
+If the argument verbose is used, all history entries are shown for a given asset (or set of assets).
+
+\item[help] {\tt action-name}
+
+"Help" gives users the possibility to see a brief description of each of the available actions.
+
+There is an alternative way to getting more detailed help, and that involves in typing an incomplete command, for instance,
+
+{\tt uam addInfo} gives a set of instructions telling users how the command can be completed.
+
+{\tt uam addInfo info=field}  informs the user that some mandatory fields are missing, as well as some toggle fields (or pizza button fields), where one of a set must be present.
+
+\end{description}
+
+\section{Practical usage examples}
+
+In this section I will illustrate with examples how to achieve certain tasks.
+
+I will assume that the default assets-file will be used and that such file
+does not exist, but in the meantime and for you to test {\tt uam} I will
+include in all examples the src= argument to use a different file.
+This option does not affect the default file. 
+
+\subsection{Add sites}
+\begin{description}
+\item[Task] Insert information for two sites into the system.
+
+\item[Prerequisites] To have all information about both sites available.
+
+\item[Steps] Do the following:
+
+\begin{enumerate}
+\item Create a template file to put the information regarding the sites you need to add. Do
+
+\begin{verbatim}
+uam getInputTemplate site n=2 > mySiteInput.txt
+\end{verbatim}
+
+\item Edit the file  {\tt mySiteInpu.txt} and add all relevant information to it. Quite obviously, you may want for the name of this file to reflect which site(s) it corresponds to.
+
+\item Each site must have a unique identifier. If a site is closed at some point in time, do not reuse its name. New sites should get new unique identifiers.
+
+\item Make sure that all information is correctly entered. Of particular interest is the geolocation of the site: longitude, latitude, height above sea level, height above the ground.
+
+Another important piece of information is the date in which the site was first open.
+
+\item Once you are happy that the information about the sites is correctly input, do:
+
+\begin{verbatim}
+uam addsitesfromfile mySiteInput.txt src=myAssets.db
+\end{verbatim}
+
+
+\end{enumerate}
+\end{description}
+
+\subsection{Add sensors}
+\begin{description}
+\item[Task] Insert information for three sensors into the system.
+
+\item[Prerequisites] To have all information about both sensors available.
+
+\item[Steps] Do the following:
+
+\begin{enumerate}
+\item Create a template file to put the information regarding the sensors you need to add. Do
+
+\begin{verbatim}
+uam getInputTemplate sensor n=3 > myFirst3Sensors.txt
+\end{verbatim}
+
+\item Edit the file  {\tt myFirst3Sensors.txt} and add all relevant
+information to it. Use a filename which reflects which sensors(s) it
+contains.
+Do not erase nor rewrite that file, if we ever need to rebuild the database or to do it using another file, it will come quite handy to have those files around.
+
+\item Each sensor must have a unique identifier. If a sensor is
+decommissioned at some point in time, do not reuse its name. New sensors
+should get new unique identifiers. Entering their serial number helps to
+uniquely identify the with a label provided with the equipment.
+
+\item Make sure that all information is correctly entered. Of particular
+interest are the serial number and the instruments which measure different
+quantities (detectors). 
+
+An important piece of information for the detectors is an estimation
+of their intrinsic observational uncertainty (epsilon).
+
+\item Once you are sure that the information about the sensors is correct, do:
+
+\begin{verbatim}
+uam addsensorssfromfile myFirst3Sensors.txt src=myAssets.db
+\end{verbatim}
+
+
+\end{enumerate}
+\end{description}
+
+\subsection{See a summary of your assets}
+
+Before continuing with other interesting and vital operations, let's see
+how we can see the content of the assets-file.
+
+\begin{itemize}
+\item Using a pager ({\tt less}). Simply do:
+
+{\tt less myAssets.db}
+
+Although the file is in plain ASCII, there is no warranty that you will
+follow what its contents is.
+
+\item See the whole content usin {\tt uam}:
+
+{\tt uam show dictionary}
+
+This option show you every possible asset contained in the dictionary as
+well as their history.
+
+\item Examine the content using {\tt uam}
+
+{\tt uam show asset=*}
+
+That option is very general and it will show you all possible assets. The
+option, however, accepts identical matches or pattern matching (if you add
+the '*' to the search value). If you have a site called {\bf AJ001}, you
+can look for its information by doing:
+
+{\tt uam show asset=aj001}
+
+Note that the search is case insensitive, hence, when naming assets
+"abcd" will be recognised as the same as "ABCD" in the search functions,
+but they are different assets internally. Better to avoid confusing
+situations.
+
+{\tt uam show asset=aj*}
+
+In this case, any asset containing "aj", "AJ", "aJ" or "Aj" as part of
+their unique ID will be shown
+
+\item Rather than being very general using "asset=" it is also possible to
+narrow down the search to sites only, sensors only, pairs only, and
+detectors only.  If you know what you are looking for, these are good
+options:
+
+\begin{verbatim}
+uam show site=<exact-site-name> or
+uam show site=*
+
+uam show sensor=<exact-sensor-name> or
+uam show sensor=*
+
+uam show detector=<exact-detector-name> or
+uam show detector=*
+
+uam show pair=<exact-pair-name> or
+uam show pair=*
+
+\end{verbatim}
+looking for
+\end{itemize}
+
+\subsection{Pair a sensor to a site}
+\begin{description}
+\item[Task] Insert information for two sites into the system.
+
+\item[Prerequisites] To have all information about both sites available.
+
+\item[Steps] Do the following:
+
+\begin{enumerate}
+\item Create a template file to put the information regarding the sites you need to add. Do
+
+\begin{verbatim}
+uam getInputTemplate site n=2 > mySiteInput.txt
+\end{verbatim}
+
+\item Edit the file  {\tt mySiteInpu.txt} and add all relevant information to it. Quite obviously, you may want for the name of this file to reflect which site(s) it corresponds to.
+
+\item Each site must have a unique identifier. If a file is closed at some point in time, do not reuse its name. New sites should get new unique identifiers.
+
+\item Make sure that all information is correctly entered. Of particular interest is the geolocation of the site: longitude, latitude, height above sea level, height above the ground.
+
+Another important piece of information is the date in which the site was first open.
+
+\item Once you are happy that the information about the sites is correctly input, do:
+
+\begin{verbatim}
+uam addsitesfromfile mySiteInput.txt
+\end{verbatim}
+
+
+\end{enumerate}
+\end{description}
+
+\end{document}
