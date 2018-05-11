@@ -12,6 +12,9 @@
 
 %%% BEGIN DOCUMENT
 \parskip=1.5ex
+\leftmargin=1.1in
+\rightmargin=1.0in
+\textwidth=6.0in
 \begin{document}
 
 \maketitle
@@ -409,40 +412,86 @@ uam show pair=<exact-pair-name> or
 uam show pair=*
 
 \end{verbatim}
-looking for
 \end{itemize}
 
 \subsection{Pair a sensor to a site}
 \begin{description}
-\item[Task] Insert information for two sites into the system.
+\item[Task] To attach a sensor to a site.
 
-\item[Prerequisites] To have all information about both sites available.
+\item[Prerequisites] To have all information about the site and the sensor ready. You must know the height above ground level at which the sensor will be attached expressed in metres; this information goes in the hag= key/value argument.
 
-\item[Steps] Do the following:
+\item[Note] This operation does not mark the sensor as collecting valid data (yet), as there may a few days for the sensor to settle on its new site before the collected data can be considered valid.
 
-\begin{enumerate}
-\item Create a template file to put the information regarding the sites you need to add. Do
-
-\begin{verbatim}
-uam getInputTemplate site n=2 > mySiteInput.txt
-\end{verbatim}
-
-\item Edit the file  {\tt mySiteInpu.txt} and add all relevant information to it. Quite obviously, you may want for the name of this file to reflect which site(s) it corresponds to.
-
-\item Each site must have a unique identifier. If a file is closed at some point in time, do not reuse its name. New sites should get new unique identifiers.
-
-\item Make sure that all information is correctly entered. Of particular interest is the geolocation of the site: longitude, latitude, height above sea level, height above the ground.
-
-Another important piece of information is the date in which the site was first open.
-
-\item Once you are happy that the information about the sites is correctly input, do:
+\item[Command] type replacing the appropriate quantities:
 
 \begin{verbatim}
-uam addsitesfromfile mySiteInput.txt
+uam attachSensorToSite  sensor=MOT701 site=aj01 date=18-09-2016 hag=5.5
 \end{verbatim}
 
-
-\end{enumerate}
 \end{description}
+
+
+
+
+\subsection{Activate a sensor in a site}
+\begin{description}
+\item[Task] To make a sensor marked as active (collecting valid data) on a site.
+
+\item[Prerequisites] To have the sensor already attached to a site.
+
+\item[Note] This information can be entered at the same time the sensor is attached to the site provided the settle-time is known. Otherwise, do it later on.
+
+
+
+ 
+\item[Command] type replacing the appropriate quantities:
+
+\begin{verbatim}
+uam activateSensorInSite  sensor=MOT701 site=aj01 date=01-10-2016
+\end{verbatim}
+
+\end{description}
+
+\subsection{Detach a sensor from a site}
+\begin{description}
+\item[Task] To detach a sensor from a site.
+
+\item[Prerequisites] The pair site-sensor must already exist.
+
+\item[Note] The pair site-sensor is marked as inactive, but its history is untouched. It is then possible to re-attach the same sensor to the same site some time later, possible after maintenance.
+
+\item[Command] type replacing the appropriate quantities:
+
+\begin{verbatim}
+uam detachSensorFromSite  sensor=MOT701 site=aj01 date=18-12-2016
+\end{verbatim}
+
+\end{description}
+
+
+\subsection{Modify the status of an asset}
+\begin{description}
+\item[Task] To change the status of an asset to "on" or something else.
+
+\item[Prerequisites] The asset must already exist.
+
+\item[Note] Status indicates whether data is being acquired correctly ("on"), or not (any other value). This is to handle anomalous situations, as when a detector of many in a sensor fails, and its data has to be marked as unreliable.
+
+{\bf status} is used by {\tt uam} to determine whether an asset needs to be shown in the public interface and other situations.
+
+Note also that if the sensor goes back to "normal" at a later stage, it can be flagged as collecting good quality data by setting {\tt status=on} 
+
+\item[Command] type replacing the appropriate quantities:
+
+\begin{verbatim}
+uam addInfo info=flag status=too-hot msg='piece of junk' \
+date=20-01-2017 detid=MOT702,temp
+\end{verbatim}
+
+\end{description}
+
+
+
+
 
 \end{document}
